@@ -19,6 +19,31 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  ONLINE_MOCK
+  CASH_ON_SITE
+}
+
+enum PaymentProvider {
+  MOCK_GATEWAY
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
 enum ActivityCategory {
   ADVENTURE
   SURF
@@ -41,15 +66,17 @@ model User {
 }
 
 model Provider {
-  id           String     @id @default(cuid())
-  userId       String     @unique
-  businessName String
-  city         String
-  description  String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activities   Activity[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  userId         String     @unique
+  businessName   String
+  city           String
+  description    String
+  commissionRate Decimal    @default(0.10) @db.Decimal(5, 4)
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities     Activity[]
+  payouts        Payout[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 }
 
 model Activity {
@@ -109,24 +136,65 @@ model Schedule {
 }
 
 model Booking {
-  id            String        @id @default(cuid())
-  userId        String
-  activityId    String
-  scheduleId    String
-  participants  Int
-  totalPrice    Decimal       @db.Decimal(10, 2)
-  status        BookingStatus @default(PENDING)
-  customerName  String
-  customerEmail String
-  customerPhone String?
-  notes         String?
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activity      Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  schedule      Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                   String         @id @default(cuid())
+  userId               String
+  activityId           String
+  scheduleId           String
+  participants         Int
+  totalPrice           Decimal        @db.Decimal(10, 2)
+  subtotal             Decimal        @db.Decimal(10, 2)
+  serviceFee           Decimal?       @db.Decimal(10, 2)
+  commissionAmount     Decimal        @db.Decimal(10, 2)
+  providerPayoutAmount Decimal        @db.Decimal(10, 2)
+  paymentStatus        PaymentStatus  @default(UNPAID)
+  paymentMethod        PaymentMethod?
+  paymentReference     String?
+  paidAt               DateTime?
+  status               BookingStatus  @default(PENDING)
+  customerName         String
+  customerEmail        String
+  customerPhone        String?
+  notes                String?
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity             Activity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  schedule             Schedule       @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  payments             Payment[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   @@index([userId, createdAt])
   @@index([activityId, createdAt])
   @@index([scheduleId])
+  @@index([paymentStatus])
+}
+
+model Payment {
+  id         String          @id @default(cuid())
+  bookingId  String
+  provider   PaymentProvider @default(MOCK_GATEWAY)
+  amount     Decimal         @db.Decimal(10, 2)
+  currency   String          @default("MAD")
+  status     PaymentStatus
+  reference  String?
+  rawPayload Json?
+  booking    Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([bookingId, createdAt])
+}
+
+model Payout {
+  id          String       @id @default(cuid())
+  providerId  String
+  amount      Decimal      @db.Decimal(10, 2)
+  currency    String       @default("MAD")
+  periodStart DateTime
+  periodEnd   DateTime
+  status      PayoutStatus @default(PENDING)
+  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([providerId, periodStart, periodEnd])
 }

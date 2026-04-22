@@ -1,5 +1,6 @@
 import { BookingStatusBadge } from "@/components/booking/BookingStatusBadge";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
+import { PaymentStatusBadge } from "@/components/payment/PaymentStatusBadge";
 import { ScheduleManagement } from "@/components/provider/ScheduleManagement";
 import { formatCurrencyMAD } from "@/lib/booking/utils";
 import { requireRole } from "@/lib/auth/guards";
@@ -65,6 +66,17 @@ export default async function ProviderDashboardPage() {
       })),
     ) ?? [];
 
+  const summary = bookings.reduce(
+    (acc, booking) => {
+      acc.totalBookings += 1;
+      acc.grossRevenue += Number(booking.totalPrice);
+      acc.totalCommissions += Number(booking.commissionAmount);
+      acc.estimatedPayout += Number(booking.providerPayoutAmount);
+      return acc;
+    },
+    { totalBookings: 0, grossRevenue: 0, totalCommissions: 0, estimatedPayout: 0 },
+  );
+
   return (
     <NavbarPageLayout
       mainClassName="bg-slate-50"
@@ -75,6 +87,13 @@ export default async function ProviderDashboardPage() {
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">Manage your experiences</h1>
         <p className="mt-2 text-slate-600">Signed in as {user.email} with role {user.role}. Publish, update, and monitor activity bookings here.</p>
       </div>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Total bookings</p><p className="text-xl font-semibold text-slate-900">{summary.totalBookings}</p></div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Gross revenue</p><p className="text-xl font-semibold text-slate-900">{formatCurrencyMAD(summary.grossRevenue)}</p></div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Total commissions</p><p className="text-xl font-semibold text-slate-900">{formatCurrencyMAD(summary.totalCommissions)}</p></div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Estimated payout</p><p className="text-xl font-semibold text-slate-900">{formatCurrencyMAD(summary.estimatedPayout)}</p></div>
+      </section>
 
       <ScheduleManagement
         activities={provider?.activities.map((activity) => ({ id: activity.id, title: activity.title })) ?? []}
@@ -89,7 +108,10 @@ export default async function ProviderDashboardPage() {
             <div key={booking.id} className="rounded-xl border border-slate-200 p-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-semibold text-slate-900">{booking.activity.title}</p>
-                <BookingStatusBadge status={booking.status} />
+                <div className="flex items-center gap-2">
+                  <BookingStatusBadge status={booking.status} />
+                  <PaymentStatusBadge status={booking.paymentStatus} />
+                </div>
               </div>
               <p className="text-slate-600">
                 {booking.schedule.date.toLocaleDateString()} at {booking.schedule.startTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
@@ -98,6 +120,8 @@ export default async function ProviderDashboardPage() {
                 {booking.customerName} • {booking.customerEmail}
               </p>
               <p className="text-slate-600">{booking.participants} participants</p>
+              <p className="text-slate-600">Commission: {formatCurrencyMAD(Number(booking.commissionAmount))}</p>
+              <p className="text-slate-600">Payout: {formatCurrencyMAD(Number(booking.providerPayoutAmount))}</p>
               <p className="font-semibold text-slate-900">{formatCurrencyMAD(Number(booking.totalPrice))}</p>
             </div>
           ))}

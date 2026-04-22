@@ -135,7 +135,7 @@ export function BookingSection({
         return;
       }
 
-      router.push(`/booking/confirmation/${payload.bookingId}`);
+      router.push(`/checkout/${payload.bookingId}`);
       router.refresh();
     } catch {
       setError("Booking failed. Please try again.");
@@ -177,7 +177,7 @@ export function BookingSection({
         onClick={submitBooking}
         className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
       >
-        {isSubmitting ? "Creating booking..." : "Confirm booking"}
+        {isSubmitting ? "Creating booking..." : "Continue to checkout"}
       </button>
     </div>
   );
