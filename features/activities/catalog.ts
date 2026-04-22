@@ -20,6 +20,18 @@ export const sortOptions = {
 } as const;
 
 export type SortOption = keyof typeof sortOptions;
+export const CATALOG_DEFAULT_SORT: SortOption = "popular";
+
+export const catalogQueryParamKeys = {
+  q: "q",
+  city: "city",
+  category: "category",
+  minPrice: "minPrice",
+  maxPrice: "maxPrice",
+  duration: "duration",
+  rating: "rating",
+  sort: "sort",
+} as const;
 
 export type CatalogFilters = {
   q?: string;
@@ -37,26 +49,32 @@ export function parseCatalogFilters(searchParams: Record<string, string | string
     const value = searchParams[key];
     return Array.isArray(value) ? value[0] : value;
   };
+  const getTrimmed = (key: string) => get(key)?.trim() || undefined;
+  const getPositiveNumber = (key: string) => {
+    const parsed = Number(get(key));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  };
 
-  const categoryParam = get("category");
+  const categoryParam = get(catalogQueryParamKeys.category);
   const normalizedCategory = categoryParam?.toUpperCase() as ActivityCategory | undefined;
   const category = normalizedCategory && Object.values(ActivityCategory).includes(normalizedCategory) ? normalizedCategory : undefined;
 
-  const sortParam = get("sort");
-  const sort = sortParam && sortParam in sortOptions ? (sortParam as SortOption) : "popular";
+  const sortParam = get(catalogQueryParamKeys.sort);
+  const sort = sortParam && sortParam in sortOptions ? (sortParam as SortOption) : CATALOG_DEFAULT_SORT;
 
-  const minPrice = Number(get("minPrice"));
-  const maxPrice = Number(get("maxPrice"));
-  const minRating = Number(get("rating"));
+  const minPrice = getPositiveNumber(catalogQueryParamKeys.minPrice);
+  const maxPrice = getPositiveNumber(catalogQueryParamKeys.maxPrice);
+  const [normalizedMinPrice, normalizedMaxPrice] =
+    minPrice && maxPrice && minPrice > maxPrice ? [maxPrice, minPrice] : [minPrice, maxPrice];
 
   return {
-    q: get("q")?.trim() || undefined,
-    city: get("city")?.trim() || undefined,
+    q: getTrimmed(catalogQueryParamKeys.q),
+    city: getTrimmed(catalogQueryParamKeys.city),
     category,
-    minPrice: Number.isFinite(minPrice) && minPrice > 0 ? minPrice : undefined,
-    maxPrice: Number.isFinite(maxPrice) && maxPrice > 0 ? maxPrice : undefined,
-    duration: get("duration")?.trim() || undefined,
-    minRating: Number.isFinite(minRating) && minRating > 0 ? minRating : undefined,
+    minPrice: normalizedMinPrice,
+    maxPrice: normalizedMaxPrice,
+    duration: getTrimmed(catalogQueryParamKeys.duration),
+    minRating: getPositiveNumber(catalogQueryParamKeys.rating),
     sort,
   };
 }
@@ -85,7 +103,30 @@ export async function getCatalogFilterData() {
 }
 
 export async function getActivities(filters: CatalogFilters) {
-  const where: Prisma.ActivityWhereInput = {
+  const where = buildActivityWhere(filters);
+  const orderBy = getActivityOrderBy(filters.sort);
+
+  return prisma.activity.findMany({
+    where,
+    orderBy,
+    select: {
+      id: true,
+      title: true,
+      city: true,
+      category: true,
+      price: true,
+      coverImage: true,
+      slug: true,
+      rating: true,
+      reviewCount: true,
+      duration: true,
+      shortDescription: true,
+    },
+  });
+}
+
+function buildActivityWhere(filters: CatalogFilters): Prisma.ActivityWhereInput {
+  return {
     isActive: true,
     ...(filters.q
       ? {
@@ -109,31 +150,26 @@ export async function getActivities(filters: CatalogFilters) {
         }
       : {}),
   };
+}
 
-  const orderBy: Prisma.ActivityOrderByWithRelationInput[] =
-    filters.sort === "priceAsc"
-      ? [{ price: "asc" }]
-      : filters.sort === "priceDesc"
-        ? [{ price: "desc" }]
-        : filters.sort === "rating"
-          ? [{ rating: "desc" }, { reviewCount: "desc" }]
-          : filters.sort === "newest"
-            ? [{ createdAt: "desc" }]
-            : [{ reviewCount: "desc" }, { rating: "desc" }];
+function getActivityOrderBy(sort: SortOption | undefined): Prisma.ActivityOrderByWithRelationInput[] {
+  if (sort === "priceAsc") {
+    return [{ price: "asc" }];
+  }
 
-  return prisma.activity.findMany({
-    where,
-    orderBy,
-    include: {
-      provider: {
-        select: { businessName: true },
-      },
-      images: {
-        orderBy: { sortOrder: "asc" },
-        take: 4,
-      },
-    },
-  });
+  if (sort === "priceDesc") {
+    return [{ price: "desc" }];
+  }
+
+  if (sort === "rating") {
+    return [{ rating: "desc" }, { reviewCount: "desc" }];
+  }
+
+  if (sort === "newest") {
+    return [{ createdAt: "desc" }];
+  }
+
+  return [{ reviewCount: "desc" }, { rating: "desc" }];
 }
 
 export async function getActivityBySlug(slug: string) {
