@@ -1,4 +1,4 @@
-import { sortOptions, type SortOption } from "@/features/activities/catalog";
+import { catalogQueryParamKeys, sortOptions, type SortOption } from "@/features/activities/catalog";
 
 type SortDropdownProps = {
   value: SortOption;
@@ -11,8 +11,8 @@ export function SortDropdown({ value }: SortDropdownProps) {
         Sort
       </label>
       <select
-        id="sort"
-        name="sort"
+        id={catalogQueryParamKeys.sort}
+        name={catalogQueryParamKeys.sort}
         defaultValue={value}
         className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
       >
