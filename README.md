@@ -61,3 +61,44 @@ lib/
 prisma/
   schema.prisma
 ```
+
+## Best practices
+
+### App Router and component design
+
+- Keep route-level concerns in `app/` and reusable UI in `components/` or `features/*/components`.
+- Default to Server Components; add `"use client"` only when you need browser APIs, local state, or event handlers.
+- Keep components focused and composable. Favor small presentational components over large, multi-purpose files.
+
+### Data and database workflow
+
+- Treat Prisma schema changes as source of truth and run migrations for every schema update.
+- Regenerate Prisma Client after schema edits:
+
+```bash
+npm run prisma:generate
+```
+
+- Centralize DB access through `lib/prisma.ts` and avoid creating multiple Prisma clients.
+
+### Styling and UI consistency
+
+- Use Tailwind utility classes directly in components, and use `lib/utils.ts` helpers for safe class composition.
+- Reuse shared UI primitives (cards, section headers, navigation) before adding new variants.
+- Keep spacing, typography, and color usage consistent with existing patterns in `app/globals.css` and current components.
+
+### Code quality
+
+- Run lint checks before committing:
+
+```bash
+npm run lint
+```
+
+- Prefer strict typing and avoid `any`; model domain data with explicit TypeScript types/interfaces.
+- Keep mock or seed-style data (like home page fixtures) isolated in feature data files.
+
+### Environment and operations
+
+- Never commit `.env`; copy from `.env.example` and keep secrets local.
+- Validate app changes in development (`npm run dev`) and verify production builds (`npm run build`) before release.
