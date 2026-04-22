@@ -72,3 +72,23 @@ export function createSlug(input: string) {
 export function parseDateTime(date: string, time: string) {
   return new Date(`${date}T${time}:00`);
 }
+
+
+export const activityImageUploadSchema = z.object({
+  altText: z.string().trim().max(180).optional().default(""),
+  isCover: z
+    .union([z.boolean(), z.string()])
+    .transform((value) => (typeof value === "boolean" ? value : value === "true"))
+    .default(false),
+});
+
+export const activityImagePatchSchema = z.object({
+  order: z.array(z.string().cuid()).optional(),
+  coverImageId: z.string().cuid().optional(),
+}).refine((value) => Boolean(value.order?.length || value.coverImageId), {
+  message: "Either order or coverImageId is required",
+});
+
+export const activityImageDeleteSchema = z.object({
+  imageId: z.string().cuid(),
+});

@@ -7,6 +7,11 @@ import { formatCurrencyMAD } from "@/lib/booking/utils";
 import { requireRole } from "@/lib/auth/guards";
 import { getProviderByUserId, getProviderDashboardData } from "@/lib/provider/service";
 
+const dateTimeFormatter = new Intl.DateTimeFormat("en-MA", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
 export default async function ProviderDashboardPage() {
   const user = await requireRole("PROVIDER");
   const provider = await getProviderByUserId(user.id);
@@ -45,8 +50,8 @@ export default async function ProviderDashboardPage() {
           <div className="mt-3 space-y-2 text-sm">
             {bookings.length === 0 ? <p className="text-slate-500">No bookings yet.</p> : bookings.map((booking) => (
               <div key={booking.id} className="rounded-lg border p-3">
-                <p className="font-medium">{booking.customerName} • {booking.activity.title}</p>
-                <p className="text-slate-600">{booking.schedule.startTime.toLocaleString()} • {booking.participants} participants</p>
+                <p className="font-medium break-words">{booking.customerName} • {booking.activity.title}</p>
+                <p className="text-slate-600">{dateTimeFormatter.format(booking.schedule.startTime)} • {booking.participants} participants</p>
               </div>
             ))}
           </div>
@@ -58,7 +63,7 @@ export default async function ProviderDashboardPage() {
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {activities.length === 0 ? <p className="text-sm text-slate-500">No activities yet.</p> : activities.map((activity) => (
             <div key={activity.id} className="rounded-xl border p-3 text-sm">
-              <p className="font-semibold">{activity.title}</p>
+              <p className="font-semibold break-words">{activity.title}</p>
               <p className="text-slate-600">{activity.city} • {activity.category}</p>
               <p className="text-slate-600">{activity._count.bookings} bookings</p>
             </div>
