@@ -207,6 +207,57 @@ async function main() {
     });
   }
 
+
+  const seededActivities = await prisma.activity.findMany({
+    where: { providerId: provider.id },
+    select: { id: true, price: true },
+  });
+
+  for (const activity of seededActivities) {
+    await prisma.schedule.deleteMany({ where: { activityId: activity.id } });
+
+    for (let dayOffset = 1; dayOffset <= 5; dayOffset += 1) {
+      const date = new Date();
+      date.setUTCHours(0, 0, 0, 0);
+      date.setUTCDate(date.getUTCDate() + dayOffset);
+
+      const morningStart = new Date(date);
+      morningStart.setUTCHours(9, 0, 0, 0);
+      const morningEnd = new Date(date);
+      morningEnd.setUTCHours(11, 0, 0, 0);
+
+      const afternoonStart = new Date(date);
+      afternoonStart.setUTCHours(15, 0, 0, 0);
+      const afternoonEnd = new Date(date);
+      afternoonEnd.setUTCHours(17, 0, 0, 0);
+
+      await prisma.schedule.createMany({
+        data: [
+          {
+            activityId: activity.id,
+            date,
+            startTime: morningStart,
+            endTime: morningEnd,
+            capacity: 10,
+            availableSpots: 10,
+            price: activity.price,
+            isActive: true,
+          },
+          {
+            activityId: activity.id,
+            date,
+            startTime: afternoonStart,
+            endTime: afternoonEnd,
+            capacity: 8,
+            availableSpots: 8,
+            price: activity.price,
+            isActive: true,
+          },
+        ],
+      });
+    }
+  }
+
   console.log(`Seeded admin: ${admin.email}`);
   console.log(`Seeded activities: ${activities.length}`);
 }
