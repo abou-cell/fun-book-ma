@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import { formatDateLabel } from "@/lib/booking/utils";
 
 type AvailabilityCalendarProps = {
@@ -6,7 +8,7 @@ type AvailabilityCalendarProps = {
   onSelectDate: (date: string) => void;
 };
 
-export function AvailabilityCalendar({ dates, selectedDate, onSelectDate }: AvailabilityCalendarProps) {
+function AvailabilityCalendarComponent({ dates, selectedDate, onSelectDate }: AvailabilityCalendarProps) {
   if (dates.length === 0) {
     return <p className="text-sm text-slate-500">No upcoming dates are currently available.</p>;
   }
@@ -34,3 +36,5 @@ export function AvailabilityCalendar({ dates, selectedDate, onSelectDate }: Avai
     </div>
   );
 }
+
+export const AvailabilityCalendar = memo(AvailabilityCalendarComponent);

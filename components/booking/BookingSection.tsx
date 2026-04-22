@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AvailabilityCalendar } from "@/components/booking/AvailabilityCalendar";
@@ -8,6 +8,7 @@ import { BookingForm } from "@/components/booking/BookingForm";
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { ParticipantSelector } from "@/components/booking/ParticipantSelector";
 import { TimeSlotList, type TimeSlotItem } from "@/components/booking/TimeSlotList";
+import { buildScheduleIndex, getPreferredSlot } from "@/lib/booking/schedule";
 
 export type BookingSchedule = TimeSlotItem & {
   date: string;
@@ -20,6 +21,8 @@ type BookingSectionProps = {
   defaultCustomerEmail?: string;
 };
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function BookingSection({
   activityId,
   schedules,
@@ -27,11 +30,25 @@ export function BookingSection({
   defaultCustomerEmail = "",
 }: BookingSectionProps) {
   const router = useRouter();
-  const uniqueDates = useMemo(() => Array.from(new Set(schedules.map((slot) => slot.date))), [schedules]);
-  const [selectedDate, setSelectedDate] = useState<string | null>(uniqueDates[0] ?? null);
-  const daySlots = useMemo(() => schedules.filter((slot) => slot.date === selectedDate), [schedules, selectedDate]);
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(daySlots[0]?.id ?? null);
-  const selectedSlot = daySlots.find((slot) => slot.id === selectedSlotId) ?? null;
+
+  const scheduleIndex = useMemo(() => buildScheduleIndex(schedules), [schedules]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(scheduleIndex.dateOrder[0] ?? null);
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+
+  const resolvedDate = selectedDate && scheduleIndex.slotsByDate[selectedDate] ? selectedDate : scheduleIndex.dateOrder[0] ?? null;
+  const daySlots = useMemo(
+    () => (resolvedDate ? scheduleIndex.slotsByDate[resolvedDate] ?? [] : []),
+    [resolvedDate, scheduleIndex.slotsByDate],
+  );
+
+  const selectedSlot = useMemo(() => {
+    const explicitSlot = daySlots.find((slot) => slot.id === selectedSlotId);
+    if (explicitSlot) {
+      return explicitSlot;
+    }
+
+    return getPreferredSlot(daySlots);
+  }, [daySlots, selectedSlotId]);
 
   const [participants, setParticipants] = useState(1);
   const [customerName, setCustomerName] = useState(defaultCustomerName);
@@ -41,39 +58,56 @@ export function BookingSection({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleDateChange(date: string) {
-    setSelectedDate(date);
-    const nextSlot = schedules.find((slot) => slot.date === date && slot.availableSpots > 0) ?? schedules.find((slot) => slot.date === date) ?? null;
-    setSelectedSlotId(nextSlot?.id ?? null);
-    setParticipants(1);
-    setError(null);
-  }
+  const maxParticipants = Math.max(1, selectedSlot?.availableSpots ?? 1);
+  const participantCount = Math.min(participants, maxParticipants);
 
-  function handleParticipantsChange(value: number) {
-    const max = selectedSlot?.availableSpots ?? 1;
-    if (!Number.isFinite(value)) {
+  const handleDateChange = useCallback(
+    (date: string) => {
+      if (date === resolvedDate) {
+        return;
+      }
+
+      setSelectedDate(date);
+      const nextSlot = getPreferredSlot(scheduleIndex.slotsByDate[date]);
+      setSelectedSlotId(nextSlot?.id ?? null);
       setParticipants(1);
-      return;
-    }
+      setError(null);
+    },
+    [resolvedDate, scheduleIndex.slotsByDate],
+  );
 
-    setParticipants(Math.max(1, Math.min(max, Math.round(value))));
-  }
+  const handleParticipantsChange = useCallback(
+    (value: number) => {
+      if (!Number.isFinite(value)) {
+        setParticipants(1);
+        return;
+      }
 
-  async function submitBooking() {
+      setParticipants(Math.max(1, Math.min(maxParticipants, Math.round(value))));
+    },
+    [maxParticipants],
+  );
+
+  const submitBooking = useCallback(async () => {
     setError(null);
 
-    if (!selectedSlot) {
+    if (!selectedSlot || selectedSlot.availableSpots <= 0) {
       setError("Please select an available time slot.");
       return;
     }
 
-    if (participants < 1 || participants > selectedSlot.availableSpots) {
+    if (participantCount < 1 || participantCount > selectedSlot.availableSpots) {
       setError("Invalid participant count for this slot.");
       return;
     }
 
-    if (!customerName.trim() || !customerEmail.trim()) {
-      setError("Please provide your name and email.");
+    if (!customerName.trim()) {
+      setError("Please provide your full name.");
+      return;
+    }
+
+    if (!emailRegex.test(customerEmail.trim())) {
+      setError("Please provide a valid email address.");
       return;
     }
 
@@ -85,8 +119,8 @@ export function BookingSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           activityId,
-                  scheduleId: selectedSlot.id,
-          participants,
+          scheduleId: selectedSlot.id,
+          participants: participantCount,
           customerName: customerName.trim(),
           customerEmail: customerEmail.trim(),
           customerPhone: customerPhone.trim(),
@@ -108,19 +142,19 @@ export function BookingSection({
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [activityId, customerEmail, customerName, customerPhone, notes, participantCount, router, selectedSlot]);
 
   return (
     <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-900">Book this activity</h3>
 
-      <AvailabilityCalendar dates={uniqueDates} selectedDate={selectedDate} onSelectDate={handleDateChange} />
+      <AvailabilityCalendar dates={scheduleIndex.dateOrder} selectedDate={resolvedDate} onSelectDate={handleDateChange} />
 
-      <TimeSlotList slots={daySlots} selectedSlotId={selectedSlotId} onSelectSlot={setSelectedSlotId} />
+      <TimeSlotList slots={daySlots} selectedSlotId={selectedSlot?.id ?? null} onSelectSlot={setSelectedSlotId} />
 
-      <ParticipantSelector value={participants} max={selectedSlot?.availableSpots ?? 1} onChange={handleParticipantsChange} />
+      <ParticipantSelector value={participantCount} max={maxParticipants} onChange={handleParticipantsChange} />
 
-      <BookingSummary participants={participants} unitPrice={selectedSlot?.price ?? 0} />
+      <BookingSummary participants={participantCount} unitPrice={selectedSlot?.price ?? 0} />
 
       <BookingForm
         customerName={customerName}
