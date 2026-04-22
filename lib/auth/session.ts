@@ -11,14 +11,22 @@ export type SessionPayload = JWTPayload & {
   name: string;
 };
 
+let cachedSessionSecret: Uint8Array | null = null;
+
 function getSessionSecret() {
+  if (cachedSessionSecret) {
+    return cachedSessionSecret;
+  }
+
   const secret = process.env.AUTH_SECRET;
 
   if (!secret) {
     throw new Error("Missing AUTH_SECRET environment variable");
   }
 
-  return new TextEncoder().encode(secret);
+  cachedSessionSecret = new TextEncoder().encode(secret);
+
+  return cachedSessionSecret;
 }
 
 export async function signSessionToken(payload: Omit<SessionPayload, "iat" | "exp">) {

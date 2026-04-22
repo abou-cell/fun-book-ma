@@ -1,7 +1,9 @@
+import { cache } from "react";
+
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const session = await getSession();
 
   if (!session?.sub) {
@@ -19,4 +21,4 @@ export async function getCurrentUser() {
       updatedAt: true,
     },
   });
-}
+});
