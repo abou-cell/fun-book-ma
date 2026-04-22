@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
@@ -29,27 +30,37 @@ export function AuthForm({ mode }: Props) {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
-    const payload = {
-      name: formData.get("name"),
-      email: formData.get("email"),
-      password: formData.get("password"),
-      role: formData.get("role"),
-    };
+    const name = formData.get("name");
+    const email = String(formData.get("email") ?? "");
+    const password = String(formData.get("password") ?? "");
+    const role = String(formData.get("role") ?? "CLIENT");
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/auth/${isLogin ? "login" : "signup"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      if (!isLogin) {
+        const signupResponse = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password, role }),
+        });
+
+        const signupData = (await signupResponse.json()) as { error?: string };
+
+        if (!signupResponse.ok) {
+          throw new Error(signupData.error ?? "Unable to create account");
+        }
+      }
+
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       });
 
-      const data = (await response.json()) as { error?: string; user?: { role?: string } };
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Authentication failed");
+      if (result?.error) {
+        throw new Error("Invalid email or password");
       }
 
       const redirectTo = searchParams.get("redirectTo");
@@ -60,7 +71,7 @@ export function AuthForm({ mode }: Props) {
         return;
       }
 
-      router.push(getLandingPageForRole(data.user?.role));
+      router.push(isLogin ? getLandingPageForRole() : getLandingPageForRole(role));
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Something went wrong");

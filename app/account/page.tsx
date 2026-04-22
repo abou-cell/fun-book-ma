@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
-import { requireAuthenticatedUser } from "@/lib/auth/guards";
+import { requireAuth } from "@/lib/auth/guards";
 
 export default async function AccountPage() {
-  const user = await requireAuthenticatedUser();
+  const user = await requireAuth("/account");
 
   return (
     <NavbarPageLayout
