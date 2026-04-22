@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { getLandingPageForRole } from "@/lib/auth/constants";
+
 type AuthMode = "login" | "signup";
 
 type Props = {
@@ -58,15 +60,7 @@ export function AuthForm({ mode }: Props) {
         return;
       }
 
-      const role = data.user?.role;
-      if (role === "PROVIDER") {
-        router.push("/provider/dashboard");
-      } else if (role === "ADMIN") {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/account");
-      }
-
+      router.push(getLandingPageForRole(data.user?.role));
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Something went wrong");
