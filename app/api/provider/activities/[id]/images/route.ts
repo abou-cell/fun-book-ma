@@ -2,9 +2,26 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { requireProviderSession } from "@/lib/provider/auth";
-import { providerFileStorage } from "@/lib/storage/provider-upload";
+import { ensureProviderOwnsActivity } from "@/lib/provider/service";
+import {
+  activityImageDeleteSchema,
+  activityImagePatchSchema,
+  activityImageUploadSchema,
+} from "@/lib/provider/validation";
+import {
+  getProviderActivityUploadFolder,
+  providerFileStorage,
+} from "@/lib/storage/provider-upload";
 
 type RouteProps = { params: Promise<{ id: string }> };
+
+async function verifyProviderActivity(activityId: string, providerId: string) {
+  try {
+    return await ensureProviderOwnsActivity(activityId, providerId);
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request, { params }: RouteProps) {
   const authResult = await requireProviderSession();
@@ -14,11 +31,7 @@ export async function POST(request: Request, { params }: RouteProps) {
   }
 
   const { id } = await params;
-
-  const activity = await prisma.activity.findFirst({
-    where: { id, providerId: authResult.provider.id },
-    select: { id: true },
-  });
+  const activity = await verifyProviderActivity(id, authResult.provider.id);
 
   if (!activity) {
     return NextResponse.json({ error: "Activity not found" }, { status: 404 });
@@ -26,8 +39,14 @@ export async function POST(request: Request, { params }: RouteProps) {
 
   const formData = await request.formData();
   const file = formData.get("file");
-  const altText = String(formData.get("altText") ?? "").trim();
-  const isCover = String(formData.get("isCover") ?? "false") === "true";
+  const parsedMeta = activityImageUploadSchema.safeParse({
+    altText: formData.get("altText"),
+    isCover: formData.get("isCover"),
+  });
+
+  if (!parsedMeta.success) {
+    return NextResponse.json({ error: "Invalid image metadata", details: parsedMeta.error.flatten() }, { status: 400 });
+  }
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Image file is required" }, { status: 400 });
@@ -42,25 +61,31 @@ export async function POST(request: Request, { params }: RouteProps) {
   }
 
   try {
-    const upload = await providerFileStorage.upload(file, `uploads/provider/${authResult.provider.id}/activities/${id}`);
-    const currentCount = await prisma.activityImage.count({ where: { activityId: id } });
+    const uploadFolder = getProviderActivityUploadFolder(authResult.provider.id, id);
+    const upload = await providerFileStorage.upload(file, uploadFolder);
 
-    if (isCover) {
-      await prisma.activityImage.updateMany({ where: { activityId: id, sortOrder: -1 }, data: { sortOrder: 0 } });
-    }
+    const image = await prisma.$transaction(async (tx) => {
+      const currentCount = await tx.activityImage.count({ where: { activityId: id } });
 
-    const image = await prisma.activityImage.create({
-      data: {
-        activityId: id,
-        imageUrl: upload.url,
-        altText: altText || null,
-        sortOrder: isCover ? -1 : currentCount + 1,
-      },
+      if (parsedMeta.data.isCover) {
+        await tx.activityImage.updateMany({ where: { activityId: id, sortOrder: -1 }, data: { sortOrder: 1 } });
+      }
+
+      const createdImage = await tx.activityImage.create({
+        data: {
+          activityId: id,
+          imageUrl: upload.url,
+          altText: parsedMeta.data.altText || null,
+          sortOrder: parsedMeta.data.isCover ? -1 : currentCount + 1,
+        },
+      });
+
+      if (parsedMeta.data.isCover || !activity.coverImage) {
+        await tx.activity.update({ where: { id }, data: { coverImage: upload.url } });
+      }
+
+      return createdImage;
     });
-
-    if (isCover) {
-      await prisma.activity.update({ where: { id }, data: { coverImage: upload.url } });
-    }
 
     return NextResponse.json({ image }, { status: 201 });
   } catch {
@@ -76,35 +101,39 @@ export async function PATCH(request: Request, { params }: RouteProps) {
   }
 
   const { id } = await params;
-  const body = (await request.json()) as { order?: string[]; coverImageId?: string };
-
-  const activity = await prisma.activity.findFirst({
-    where: { id, providerId: authResult.provider.id },
-    select: { id: true },
-  });
+  const activity = await verifyProviderActivity(id, authResult.provider.id);
 
   if (!activity) {
     return NextResponse.json({ error: "Activity not found" }, { status: 404 });
   }
 
-  if (Array.isArray(body.order)) {
+  const payload = await request.json();
+  const parsed = activityImagePatchSchema.safeParse(payload);
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid payload", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  if (parsed.data.order) {
     await Promise.all(
-      body.order.map((imageId, index) =>
+      parsed.data.order.map((imageId, index) =>
         prisma.activityImage.updateMany({ where: { id: imageId, activityId: id }, data: { sortOrder: index + 1 } }),
       ),
     );
   }
 
-  if (body.coverImageId) {
-    const cover = await prisma.activityImage.findFirst({ where: { id: body.coverImageId, activityId: id } });
+  if (parsed.data.coverImageId) {
+    const cover = await prisma.activityImage.findFirst({ where: { id: parsed.data.coverImageId, activityId: id } });
 
     if (!cover) {
       return NextResponse.json({ error: "Cover image not found" }, { status: 404 });
     }
 
-    await prisma.activity.update({ where: { id }, data: { coverImage: cover.imageUrl } });
-    await prisma.activityImage.updateMany({ where: { activityId: id }, data: { sortOrder: 1 } });
-    await prisma.activityImage.update({ where: { id: cover.id }, data: { sortOrder: -1 } });
+    await prisma.$transaction([
+      prisma.activity.update({ where: { id }, data: { coverImage: cover.imageUrl } }),
+      prisma.activityImage.updateMany({ where: { activityId: id }, data: { sortOrder: 1 } }),
+      prisma.activityImage.update({ where: { id: cover.id }, data: { sortOrder: -1 } }),
+    ]);
   }
 
   return NextResponse.json({ ok: true });
@@ -118,14 +147,21 @@ export async function DELETE(request: Request, { params }: RouteProps) {
   }
 
   const { id } = await params;
-  const body = (await request.json()) as { imageId?: string };
+  const activity = await verifyProviderActivity(id, authResult.provider.id);
 
-  if (!body.imageId) {
+  if (!activity) {
+    return NextResponse.json({ error: "Activity not found" }, { status: 404 });
+  }
+
+  const payload = await request.json();
+  const parsed = activityImageDeleteSchema.safeParse(payload);
+
+  if (!parsed.success) {
     return NextResponse.json({ error: "imageId is required" }, { status: 400 });
   }
 
   const image = await prisma.activityImage.findFirst({
-    where: { id: body.imageId, activityId: id, activity: { providerId: authResult.provider.id } },
+    where: { id: parsed.data.imageId, activityId: id },
   });
 
   if (!image) {
@@ -133,7 +169,23 @@ export async function DELETE(request: Request, { params }: RouteProps) {
   }
 
   await providerFileStorage.remove(image.imageUrl);
-  await prisma.activityImage.delete({ where: { id: image.id } });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.activityImage.delete({ where: { id: image.id } });
+
+    if (activity.coverImage === image.imageUrl) {
+      const nextCover = await tx.activityImage.findFirst({
+        where: { activityId: id },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      });
+
+      await tx.activity.update({ where: { id }, data: { coverImage: nextCover?.imageUrl ?? "/images/activity-placeholder.jpg" } });
+
+      if (nextCover) {
+        await tx.activityImage.update({ where: { id: nextCover.id }, data: { sortOrder: -1 } });
+      }
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }
