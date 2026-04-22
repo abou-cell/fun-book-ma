@@ -71,6 +71,8 @@ model Provider {
   businessName   String
   city           String
   description    String
+  phone          String?
+  whatsapp       String?
   commissionRate Decimal    @default(0.10) @db.Decimal(5, 4)
   user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   activities     Activity[]
@@ -110,6 +112,7 @@ model ActivityImage {
   activityId String
   imageUrl   String
   altText    String?
+  isCover    Boolean  @default(false)
   sortOrder  Int      @default(0)
   activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())

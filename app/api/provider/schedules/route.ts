@@ -1,78 +1,43 @@
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProviderSession } from "@/lib/provider/auth";
+import { upsertProviderSchedule } from "@/lib/provider/service";
+import { schedulePayloadSchema } from "@/lib/provider/validation";
+
+export async function GET() {
+  const authResult = await requireProviderSession();
+
+  if ("error" in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  const schedules = await prisma.schedule.findMany({
+    where: { activity: { providerId: authResult.provider.id } },
+    include: { activity: { select: { id: true, title: true } } },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+  });
+
+  return NextResponse.json({ schedules });
+}
 
 export async function POST(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const authResult = await requireProviderSession();
 
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if ("error" in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
-  const provider = await prisma.provider.findUnique({ where: { userId }, select: { id: true } });
+  const parsed = schedulePayloadSchema.safeParse(await request.json());
 
-  if (!provider) {
-    return NextResponse.json({ error: "Provider account required" }, { status: 403 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid schedule payload", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const body = (await request.json()) as {
-    activityId?: string;
-    date?: string;
-    startTime?: string;
-    endTime?: string;
-    capacity?: number;
-    price?: number;
-  };
-
-  if (!body.activityId || !body.date || !body.startTime || !body.endTime) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  try {
+    const schedule = await upsertProviderSchedule(authResult.provider.id, parsed.data);
+    return NextResponse.json({ scheduleId: schedule.id }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create schedule" }, { status: 400 });
   }
-
-  const capacity = Number(body.capacity);
-  const price = Number(body.price);
-
-  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 200) {
-    return NextResponse.json({ error: "Invalid capacity" }, { status: 400 });
-  }
-
-  if (!Number.isFinite(price) || price <= 0) {
-    return NextResponse.json({ error: "Invalid price" }, { status: 400 });
-  }
-
-  const activity = await prisma.activity.findFirst({
-    where: {
-      id: body.activityId,
-      providerId: provider.id,
-    },
-    select: { id: true },
-  });
-
-  if (!activity) {
-    return NextResponse.json({ error: "Activity not found" }, { status: 404 });
-  }
-
-  const date = new Date(body.date);
-  const startTime = new Date(`${body.date}T${body.startTime}:00`);
-  const endTime = new Date(`${body.date}T${body.endTime}:00`);
-
-  if (Number.isNaN(date.getTime()) || Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime()) || startTime >= endTime) {
-    return NextResponse.json({ error: "Invalid date/time range" }, { status: 400 });
-  }
-
-  const schedule = await prisma.schedule.create({
-    data: {
-      activityId: activity.id,
-      date,
-      startTime,
-      endTime,
-      capacity,
-      availableSpots: capacity,
-      price,
-      isActive: true,
-    },
-  });
-
-  return NextResponse.json({ scheduleId: schedule.id }, { status: 201 });
 }

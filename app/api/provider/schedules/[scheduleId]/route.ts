@@ -1,51 +1,48 @@
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProviderSession } from "@/lib/provider/auth";
+import { upsertProviderSchedule } from "@/lib/provider/service";
+import { schedulePayloadSchema } from "@/lib/provider/validation";
 
 type RouteProps = {
   params: Promise<{ scheduleId: string }>;
 };
 
 export async function PATCH(request: Request, { params }: RouteProps) {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const authResult = await requireProviderSession();
 
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const provider = await prisma.provider.findUnique({ where: { userId }, select: { id: true } });
-
-  if (!provider) {
-    return NextResponse.json({ error: "Provider account required" }, { status: 403 });
+  if ("error" in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
   const { scheduleId } = await params;
-  const body = (await request.json()) as { isActive?: boolean };
+  const raw = await request.json();
 
-  if (typeof body.isActive !== "boolean") {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  if (typeof raw.isActive === "boolean" && Object.keys(raw).length === 1) {
+    const schedule = await prisma.schedule.findFirst({
+      where: { id: scheduleId, activity: { providerId: authResult.provider.id } },
+      select: { id: true },
+    });
+
+    if (!schedule) {
+      return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
+    }
+
+    await prisma.schedule.update({ where: { id: scheduleId }, data: { isActive: raw.isActive } });
+    return NextResponse.json({ ok: true });
   }
 
-  const schedule = await prisma.schedule.findFirst({
-    where: {
-      id: scheduleId,
-      activity: {
-        providerId: provider.id,
-      },
-    },
-    select: { id: true },
-  });
+  const parsed = schedulePayloadSchema.safeParse(raw);
 
-  if (!schedule) {
-    return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid schedule payload", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  await prisma.schedule.update({
-    where: { id: scheduleId },
-    data: { isActive: body.isActive },
-  });
-
-  return NextResponse.json({ ok: true });
+  try {
+    await upsertProviderSchedule(authResult.provider.id, { ...parsed.data, scheduleId });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to update schedule" }, { status: 400 });
+  }
 }
