@@ -7,7 +7,7 @@ type PopularActivitiesSectionProps = {
 
 export function PopularActivitiesSection({ activities }: PopularActivitiesSectionProps) {
   return (
-    <section id="popular" className="mx-auto mt-12 max-w-6xl px-4 sm:px-6 lg:px-8">
+    <section id="popular" className="mt-12">
       <SectionHeader title="Popular Activities" ctaLabel="Explore more" />
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {activities.map((activity) => (

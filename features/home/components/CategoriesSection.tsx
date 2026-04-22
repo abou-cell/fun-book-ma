@@ -6,7 +6,7 @@ type CategoriesSectionProps = {
 
 export function CategoriesSection({ categories }: CategoriesSectionProps) {
   return (
-    <section id="categories" className="mx-auto mt-12 max-w-6xl px-4 sm:px-6 lg:px-8">
+    <section id="categories" className="mt-12">
       <SectionHeader title="Top Categories" ctaLabel="View all" />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {categories.map((category) => (
