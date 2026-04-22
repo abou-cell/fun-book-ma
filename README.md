@@ -102,3 +102,21 @@ npm run lint
 
 - Never commit `.env`; copy from `.env.example` and keep secrets local.
 - Validate app changes in development (`npm run dev`) and verify production builds (`npm run build`) before release.
+
+### API and authentication hygiene
+
+- Validate incoming request payloads at API boundaries (for example, in `app/api/auth/*`) before touching business logic or the database.
+- Keep authentication and session logic centralized in `lib/auth/*`; avoid duplicating cookie/session rules across route handlers.
+- Return consistent, minimal error messages from auth endpoints to avoid leaking sensitive implementation details.
+
+### Security and privacy
+
+- Hash passwords with a strong one-way algorithm and never log credentials or full session tokens.
+- Use least-privilege database access and avoid exposing internal IDs or sensitive fields in client-facing responses.
+- Keep dependencies current (`npm outdated`) and apply security fixes promptly.
+
+### Performance and maintainability
+
+- Prefer server-side data fetching in App Router routes to reduce client bundle size.
+- Avoid unnecessary re-renders by keeping client component state local and passing only needed props.
+- When adding new features, colocate domain-specific code under `features/<feature-name>/` to keep modules discoverable.
