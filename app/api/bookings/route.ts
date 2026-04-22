@@ -1,9 +1,11 @@
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, PaymentStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { bookingRequestSchema } from "@/lib/booking/validation";
+import { sendBookingCreatedEmails } from "@/lib/email/booking-notifications";
+import { calculateBookingFinancials } from "@/lib/financials/commission";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -35,6 +37,17 @@ export async function POST(request: Request) {
           activityId: true,
           availableSpots: true,
           price: true,
+          activity: {
+            select: {
+              title: true,
+              provider: {
+                select: {
+                  commissionRate: true,
+                  user: { select: { email: true } },
+                },
+              },
+            },
+          },
         },
       });
 
@@ -60,20 +73,51 @@ export async function POST(request: Request) {
         throw new Error("Slot availability changed. Please retry.");
       }
 
+      const subtotal = Number(schedule.price.mul(payload.participants));
+      const { commissionAmount, providerPayoutAmount } = calculateBookingFinancials(
+        subtotal,
+        Number(schedule.activity.provider.commissionRate),
+      );
+
       return tx.booking.create({
         data: {
           userId,
           activityId: schedule.activityId,
           scheduleId: schedule.id,
           participants: payload.participants,
-          totalPrice: schedule.price.mul(payload.participants),
+          totalPrice: subtotal,
+          subtotal,
+          commissionAmount,
+          providerPayoutAmount,
+          paymentStatus: PaymentStatus.UNPAID,
           status: BookingStatus.PENDING,
           customerName: payload.customerName,
           customerEmail: payload.customerEmail,
           customerPhone: payload.customerPhone,
           notes: payload.notes,
         },
+        select: {
+          id: true,
+          customerName: true,
+          customerEmail: true,
+          totalPrice: true,
+          activity: {
+            select: {
+              title: true,
+              provider: { select: { user: { select: { email: true } } } },
+            },
+          },
+        },
       });
+    });
+
+    void sendBookingCreatedEmails({
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      providerEmail: booking.activity.provider.user.email,
+      bookingId: booking.id,
+      activityTitle: booking.activity.title,
+      amount: Number(booking.totalPrice),
     });
 
     return NextResponse.json({ bookingId: booking.id }, { status: 201 });

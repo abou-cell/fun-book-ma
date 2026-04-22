@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BookingStatusBadge } from "@/components/booking/BookingStatusBadge";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
+import { PaymentStatusBadge } from "@/components/payment/PaymentStatusBadge";
 import { formatCurrencyMAD } from "@/lib/booking/utils";
 import { requireAuth } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
@@ -63,13 +64,18 @@ export default async function AccountPage() {
                 <Link href={`/activities/${booking.activity.slug}`} className="font-semibold text-slate-900 hover:text-brand">
                   {booking.activity.title}
                 </Link>
-                <BookingStatusBadge status={booking.status} />
+                <div className="flex items-center gap-2">
+                  <BookingStatusBadge status={booking.status} />
+                  <PaymentStatusBadge status={booking.paymentStatus} />
+                </div>
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 {booking.schedule.date.toLocaleDateString()} at {booking.schedule.startTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
               </p>
               <p className="text-sm text-slate-600">{booking.participants} participants</p>
-              <p className="text-sm font-semibold text-slate-900">{formatCurrencyMAD(Number(booking.totalPrice))}</p>
+              <p className="text-sm text-slate-600">Payment method: {booking.paymentMethod ?? "Not selected"}</p>
+              <p className="text-sm font-semibold text-slate-900">Total: {formatCurrencyMAD(Number(booking.totalPrice))}</p>
+              <p className="text-sm font-semibold text-slate-900">Paid: {booking.paymentStatus === "PAID" ? formatCurrencyMAD(Number(booking.totalPrice)) : formatCurrencyMAD(0)}</p>
             </div>
           ))}
         </div>

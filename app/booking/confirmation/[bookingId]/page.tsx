@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { BookingStatusBadge } from "@/components/booking/BookingStatusBadge";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
+import { PaymentStatusBadge } from "@/components/payment/PaymentStatusBadge";
 import { formatCurrencyMAD } from "@/lib/booking/utils";
 import { requireAuth } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
@@ -33,9 +34,9 @@ export default async function BookingConfirmationPage({ params }: BookingConfirm
   return (
     <NavbarPageLayout sectionClassName="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-medium text-brand">Booking confirmed</p>
+        <p className="text-sm font-medium text-brand">Booking details</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">Thanks, {booking.customerName}</h1>
-        <p className="mt-2 text-slate-600">Your booking request was created successfully.</p>
+        <p className="mt-2 text-slate-600">Your booking is recorded. Review status and next steps below.</p>
 
         <div className="mt-5 space-y-2 text-sm">
           <p>
@@ -54,7 +55,10 @@ export default async function BookingConfirmationPage({ params }: BookingConfirm
             <span className="font-semibold text-slate-900">Total price:</span> {formatCurrencyMAD(Number(booking.totalPrice))}
           </p>
           <p className="flex items-center gap-2">
-            <span className="font-semibold text-slate-900">Status:</span> <BookingStatusBadge status={booking.status} />
+            <span className="font-semibold text-slate-900">Booking status:</span> <BookingStatusBadge status={booking.status} />
+          </p>
+          <p className="flex items-center gap-2">
+            <span className="font-semibold text-slate-900">Payment status:</span> <PaymentStatusBadge status={booking.paymentStatus} />
           </p>
         </div>
 
@@ -62,8 +66,11 @@ export default async function BookingConfirmationPage({ params }: BookingConfirm
           <Link href={`/activities/${booking.activity.slug}`} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
             Back to activity
           </Link>
-          <Link href="/account" className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white">
+          <Link href="/account" className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
             View my bookings
+          </Link>
+          <Link href={`/checkout/${booking.id}`} className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white">
+            Go to checkout
           </Link>
         </div>
       </div>
