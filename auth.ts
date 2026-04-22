@@ -1,10 +1,10 @@
+import { UserRole } from "@prisma/client";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { UserRole } from "@prisma/client";
 
 import { verifyPassword } from "@/lib/auth/password";
-import { loginSchema } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
+import { loginSchema } from "@/lib/auth/validation";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -55,7 +55,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role as UserRole;
+
+        return token;
       }
+
+      if (!token.sub) {
+        return token;
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: token.sub },
+        select: { role: true },
+      });
+
+      token.role = dbUser?.role ?? UserRole.CLIENT;
 
       return token;
     },
