@@ -2,7 +2,7 @@
 
 import { PaymentMethod } from "@prisma/client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string; description: string }> = [
   { value: PaymentMethod.ONLINE_MOCK, label: "Online card (mock)", description: "Simulated online payment for development." },
@@ -15,16 +15,64 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
   const [intentReference, setIntentReference] = useState<string | undefined>(initialIntentReference);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (paymentMethod !== PaymentMethod.ONLINE_MOCK || intentReference || isSubmitting) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, {
+          method: "POST",
+          signal: controller.signal,
+        });
+
+        if (!intentResponse.ok) {
+          return;
+        }
+
+        const intentPayload = (await intentResponse.json()) as { reference?: string };
+        if (intentPayload.reference) {
+          setIntentReference(intentPayload.reference);
+        }
+      } catch {
+        // Intentionally silent: pre-warming is best-effort.
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [bookingId, intentReference, isSubmitting, paymentMethod]);
 
   const handleConfirmPayment = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
 
     try {
       let effectiveIntentReference = intentReference;
 
       if (paymentMethod === PaymentMethod.ONLINE_MOCK && !effectiveIntentReference) {
-        const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, { method: "POST" });
+        const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, {
+          method: "POST",
+          signal: abortRef.current.signal,
+        });
         const intentPayload = (await intentResponse.json()) as { error?: string; reference?: string };
 
         if (!intentResponse.ok || !intentPayload.reference) {
@@ -40,6 +88,7 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentMethod, intentReference: effectiveIntentReference }),
+        signal: abortRef.current.signal,
       });
 
       const payload = (await response.json()) as { error?: string; redirectPath?: string };
@@ -55,6 +104,7 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
       setError("Payment could not be completed.");
     } finally {
       setIsSubmitting(false);
+      abortRef.current = null;
     }
   };
 
@@ -82,7 +132,7 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
 
       {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
 
-      <div className="sticky bottom-3 z-10 bg-white/95 pb-1 pt-2 backdrop-blur supports-[backdrop-filter]:bg-white/80 sm:static sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div className="sticky bottom-0 z-10 -mx-6 border-t border-slate-200 bg-white/95 px-6 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 sm:static sm:mx-0 sm:border-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <button
           type="button"
           onClick={handleConfirmPayment}
