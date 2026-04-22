@@ -42,7 +42,7 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
     where: {
       activityId: activity.id,
       isActive: true,
-      date: { gte: new Date() },
+      startTime: { gte: new Date() },
     },
     orderBy: [{ date: "asc" }, { startTime: "asc" }],
     select: {

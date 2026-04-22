@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import { formatTimeLabel } from "@/lib/booking/utils";
 
 export type TimeSlotItem = {
@@ -14,7 +16,7 @@ type TimeSlotListProps = {
   onSelectSlot: (slotId: string) => void;
 };
 
-export function TimeSlotList({ slots, selectedSlotId, onSelectSlot }: TimeSlotListProps) {
+function TimeSlotListComponent({ slots, selectedSlotId, onSelectSlot }: TimeSlotListProps) {
   if (slots.length === 0) {
     return <p className="text-sm text-slate-500">No time slots available for this date.</p>;
   }
@@ -51,3 +53,5 @@ export function TimeSlotList({ slots, selectedSlotId, onSelectSlot }: TimeSlotLi
     </div>
   );
 }
+
+export const TimeSlotList = memo(TimeSlotListComponent);
