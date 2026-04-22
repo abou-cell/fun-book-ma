@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export type ActivityCardProps = {
   title: string;
@@ -6,19 +7,35 @@ export type ActivityCardProps = {
   category: string;
   price: number;
   image: string;
+  href?: string;
+  rating?: number;
+  reviewCount?: number;
+  duration?: string;
+  shortDescription?: string;
 };
 
 const madPriceFormatter = new Intl.NumberFormat("en-US");
 
-export function ActivityCard({ title, city, category, price, image }: ActivityCardProps) {
-  return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition hover:-translate-y-1">
+export function ActivityCard({
+  title,
+  city,
+  category,
+  price,
+  image,
+  href,
+  rating,
+  reviewCount,
+  duration,
+  shortDescription,
+}: ActivityCardProps) {
+  const content = (
+    <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition hover:-translate-y-1 hover:shadow-lg">
       <div className="relative aspect-[4/3] w-full">
         <Image
           src={image}
           alt={title}
           fill
-          className="object-cover"
+          className="object-cover transition group-hover:scale-[1.02]"
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           quality={70}
         />
@@ -29,8 +46,19 @@ export function ActivityCard({ title, city, category, price, image }: ActivityCa
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{category}</span>
         </div>
         <p className="text-sm text-slate-500">{city}, Morocco</p>
+        {shortDescription ? <p className="line-clamp-2 text-sm text-slate-600">{shortDescription}</p> : null}
+        <div className="flex items-center justify-between text-sm text-slate-600">
+          {duration ? <span>{duration}</span> : <span>&nbsp;</span>}
+          {rating ? (
+            <span>
+              ⭐ {rating.toFixed(1)} {reviewCount ? `(${reviewCount})` : ""}
+            </span>
+          ) : null}
+        </div>
         <p className="text-sm font-semibold text-slate-900">From {madPriceFormatter.format(price)} MAD</p>
       </div>
     </article>
   );
+
+  return href ? <Link href={href}>{content}</Link> : content;
 }

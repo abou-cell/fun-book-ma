@@ -24,6 +24,9 @@ export async function Navbar() {
           <Link href="/#popular" className="transition hover:text-slate-900">
             Popular
           </Link>
+          <Link href="/activities" className="transition hover:text-slate-900">
+            Activities
+          </Link>
           {user ? (
             <>
               <Link href="/account" className="transition hover:text-slate-900">
