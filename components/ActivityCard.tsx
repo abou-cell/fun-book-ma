@@ -8,11 +8,20 @@ export type ActivityCardProps = {
   image: string;
 };
 
+const madPriceFormatter = new Intl.NumberFormat("en-US");
+
 export function ActivityCard({ title, city, category, price, image }: ActivityCardProps) {
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition hover:-translate-y-1">
       <div className="relative aspect-[4/3] w-full">
-        <Image src={image} alt={title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 25vw" />
+        <Image
+          src={image}
+          alt={title}
+          fill
+          className="object-cover"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+          quality={70}
+        />
       </div>
       <div className="space-y-2 p-4">
         <div className="flex items-center justify-between gap-2">
@@ -20,7 +29,7 @@ export function ActivityCard({ title, city, category, price, image }: ActivityCa
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{category}</span>
         </div>
         <p className="text-sm text-slate-500">{city}, Morocco</p>
-        <p className="text-sm font-semibold text-slate-900">From {price.toLocaleString("en-US")} MAD</p>
+        <p className="text-sm font-semibold text-slate-900">From {madPriceFormatter.format(price)} MAD</p>
       </div>
     </article>
   );

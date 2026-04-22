@@ -4,6 +4,8 @@ import { HeroSection } from "@/features/home/components/HeroSection";
 import { PopularActivitiesSection } from "@/features/home/components/PopularActivitiesSection";
 import { categories, popularActivities } from "@/features/home/data";
 
+export const dynamic = "force-static";
+
 export default function HomePage() {
   return (
     <main className="min-h-screen pb-16">
