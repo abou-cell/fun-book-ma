@@ -2,7 +2,7 @@ import { UserRole } from "@prisma/client";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { roleLandingPage } from "@/lib/auth/constants";
+import { getLandingPageForRole, hasRequiredRole } from "@/lib/auth/rbac";
 
 export async function requireAuth(redirectTo = "/account") {
   const user = await getCurrentUser();
@@ -14,15 +14,17 @@ export async function requireAuth(redirectTo = "/account") {
   return user;
 }
 
-export async function requireRole(role: UserRole) {
+export async function requireRole(allowedRoles: UserRole | UserRole[]) {
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  const fallbackPath = getLandingPageForRole(roles[0]);
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect(`/login?redirectTo=${encodeURIComponent(roleLandingPage[role])}`);
+    redirect(`/login?redirectTo=${encodeURIComponent(fallbackPath)}`);
   }
 
-  if (user.role !== role) {
-    redirect(roleLandingPage[user.role]);
+  if (!hasRequiredRole(user.role, roles)) {
+    redirect(getLandingPageForRole(user.role));
   }
 
   return user;
