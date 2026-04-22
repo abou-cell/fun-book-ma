@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CLIENT
+  PROVIDER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  role      UserRole  @default(CLIENT)
+  provider  Provider?
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Provider {
+  id           String     @id @default(cuid())
+  userId       String     @unique
+  businessName String
+  city         String
+  description  String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities   Activity[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Activity {
+  id          String    @id @default(cuid())
+  providerId  String
+  title       String
+  description String
+  city        String
+  category    String
+  price       Decimal   @db.Decimal(10, 2)
+  provider    Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([city, category])
+}
+
+model Booking {
+  id         String        @id @default(cuid())
+  userId     String
+  activityId String
+  date       DateTime
+  status     BookingStatus @default(PENDING)
+  totalPrice Decimal       @db.Decimal(10, 2)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity   Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([userId, date])
+  @@index([activityId, date])
+}
