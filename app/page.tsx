@@ -1,10 +1,11 @@
-import { ActivityCard } from "@/components/ActivityCard";
+import { ActivityCard, type ActivityCardProps } from "@/components/ActivityCard";
 import { Navbar } from "@/components/Navbar";
 import { SearchBar } from "@/components/SearchBar";
+import { SectionHeader } from "@/components/SectionHeader";
 
 const categories = ["Quad", "Surf", "Spa", "Kids", "Experiences"];
 
-const popularActivities = [
+const popularActivities: ActivityCardProps[] = [
   {
     title: "Sunset Quad in Agafay Desert",
     city: "Marrakech",
@@ -58,12 +59,7 @@ export default function HomePage() {
       </section>
 
       <section id="categories" className="mx-auto mt-12 max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Top Categories</h2>
-          <a href="#" className="text-sm font-medium text-brand hover:text-brand-dark">
-            View all
-          </a>
-        </div>
+        <SectionHeader title="Top Categories" ctaLabel="View all" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {categories.map((category) => (
             <button
@@ -77,13 +73,7 @@ export default function HomePage() {
       </section>
 
       <section id="popular" className="mx-auto mt-12 max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Popular Activities</h2>
-          <a href="#" className="text-sm font-medium text-brand hover:text-brand-dark">
-            Explore more
-          </a>
-        </div>
-
+        <SectionHeader title="Popular Activities" ctaLabel="Explore more" />
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {popularActivities.map((activity) => (
             <ActivityCard key={activity.title} {...activity} />

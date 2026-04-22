@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-type ActivityCardProps = {
+export type ActivityCardProps = {
   title: string;
   city: string;
   category: string;
