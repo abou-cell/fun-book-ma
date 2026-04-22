@@ -5,10 +5,20 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { processBookingPayment } from "@/lib/payments/service";
 
-const payloadSchema = z.object({
-  paymentMethod: z.nativeEnum(PaymentMethod),
-  intentReference: z.string().trim().optional(),
-});
+const payloadSchema = z
+  .object({
+    paymentMethod: z.nativeEnum(PaymentMethod),
+    intentReference: z.string().trim().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.paymentMethod === PaymentMethod.ONLINE_MOCK && !value.intentReference) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["intentReference"],
+        message: "Missing payment authorization reference.",
+      });
+    }
+  });
 
 type RouteContext = { params: Promise<{ bookingId: string }> };
 
@@ -20,9 +30,17 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const parsedBody = payloadSchema.safeParse(await request.json());
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
+  }
+
+  const parsedBody = payloadSchema.safeParse(body);
   if (!parsedBody.success) {
-    return NextResponse.json({ error: "Invalid payment request." }, { status: 400 });
+    return NextResponse.json({ error: parsedBody.error.issues[0]?.message ?? "Invalid payment request." }, { status: 400 });
   }
 
   const { bookingId } = await params;

@@ -21,23 +21,25 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
     setIsSubmitting(true);
 
     try {
-      if (paymentMethod === PaymentMethod.ONLINE_MOCK && !intentReference) {
+      let effectiveIntentReference = intentReference;
+
+      if (paymentMethod === PaymentMethod.ONLINE_MOCK && !effectiveIntentReference) {
         const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, { method: "POST" });
         const intentPayload = (await intentResponse.json()) as { error?: string; reference?: string };
 
         if (!intentResponse.ok || !intentPayload.reference) {
           setError(intentPayload.error ?? "Unable to start payment.");
-          setIsSubmitting(false);
           return;
         }
 
+        effectiveIntentReference = intentPayload.reference;
         setIntentReference(intentPayload.reference);
       }
 
       const response = await fetch(`/api/checkout/${bookingId}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMethod, intentReference }),
+        body: JSON.stringify({ paymentMethod, intentReference: effectiveIntentReference }),
       });
 
       const payload = (await response.json()) as { error?: string; redirectPath?: string };
@@ -80,14 +82,16 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
 
       {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
 
-      <button
-        type="button"
-        onClick={handleConfirmPayment}
-        disabled={isSubmitting}
-        className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
-      >
-        {isSubmitting ? "Processing..." : "Confirm & pay"}
-      </button>
+      <div className="sticky bottom-3 z-10 bg-white/95 pb-1 pt-2 backdrop-blur supports-[backdrop-filter]:bg-white/80 sm:static sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <button
+          type="button"
+          onClick={handleConfirmPayment}
+          disabled={isSubmitting}
+          className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          {isSubmitting ? "Processing..." : "Confirm & pay"}
+        </button>
+      </div>
     </div>
   );
 }

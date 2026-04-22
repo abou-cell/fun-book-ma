@@ -15,6 +15,18 @@ type NotificationContext = {
   amount: number;
 };
 
+function trackNotificationFailure(type: string, result: Awaited<ReturnType<typeof sendTransactionalEmail>>) {
+  if (result.ok) {
+    return;
+  }
+
+  console.warn("[email] notification not delivered", {
+    type,
+    skipped: result.skipped,
+    reason: result.reason,
+  });
+}
+
 export async function sendBookingCreatedEmails(context: NotificationContext) {
   const amount = formatCurrencyMAD(context.amount);
   const customerTemplate = customerBookingConfirmationTemplate({
@@ -24,10 +36,11 @@ export async function sendBookingCreatedEmails(context: NotificationContext) {
     amount,
   });
 
-  await sendTransactionalEmail({
+  const customerResult = await sendTransactionalEmail({
     to: context.customerEmail,
     ...customerTemplate,
   });
+  trackNotificationFailure("booking_customer", customerResult);
 
   if (context.providerEmail) {
     const providerTemplate = providerNewBookingNotificationTemplate({
@@ -37,10 +50,11 @@ export async function sendBookingCreatedEmails(context: NotificationContext) {
       amount,
     });
 
-    await sendTransactionalEmail({
+    const providerResult = await sendTransactionalEmail({
       to: context.providerEmail,
       ...providerTemplate,
     });
+    trackNotificationFailure("booking_provider", providerResult);
   }
 }
 
@@ -53,8 +67,9 @@ export async function sendPaymentSuccessEmail(context: NotificationContext) {
     amount,
   });
 
-  await sendTransactionalEmail({
+  const customerResult = await sendTransactionalEmail({
     to: context.customerEmail,
     ...customerTemplate,
   });
+  trackNotificationFailure("payment_customer", customerResult);
 }
