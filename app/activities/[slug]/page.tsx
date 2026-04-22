@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
+import { BookingSection } from "@/components/booking/BookingSection";
 import { SectionHeader } from "@/components/SectionHeader";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
 import { activityCategoryLabels, getActivityBySlug } from "@/features/activities/catalog";
+import { getCurrentUser } from "@/lib/auth/current-user";
+import { prisma } from "@/lib/prisma";
 
 type ActivityDetailsPageProps = {
   params: Promise<{ slug: string }>;
@@ -29,11 +32,37 @@ export async function generateMetadata({ params }: ActivityDetailsPageProps): Pr
 
 export default async function ActivityDetailsPage({ params }: ActivityDetailsPageProps) {
   const { slug } = await params;
-  const activity = await getActivityBySlug(slug);
+  const [activity, currentUser] = await Promise.all([getActivityBySlug(slug), getCurrentUser()]);
 
   if (!activity) {
     notFound();
   }
+
+  const schedules = await prisma.schedule.findMany({
+    where: {
+      activityId: activity.id,
+      isActive: true,
+      date: { gte: new Date() },
+    },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    select: {
+      id: true,
+      date: true,
+      startTime: true,
+      endTime: true,
+      availableSpots: true,
+      price: true,
+    },
+  });
+
+  const bookingSchedules = schedules.map((schedule) => ({
+    id: schedule.id,
+    date: schedule.date.toISOString().slice(0, 10),
+    startTime: schedule.startTime.toISOString(),
+    endTime: schedule.endTime.toISOString(),
+    availableSpots: schedule.availableSpots,
+    price: Number(schedule.price),
+  }));
 
   const gallery = activity.images.length > 0 ? activity.images : [{ imageUrl: activity.coverImage, altText: activity.title, id: activity.id }];
 
@@ -41,7 +70,7 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
     <NavbarPageLayout sectionClassName="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <SectionHeader title={activity.title} subtitle={activity.shortDescription} />
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2">
             {gallery.map((image, index) => (
@@ -78,23 +107,12 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:h-fit">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-2xl font-semibold text-slate-900">{Number(activity.price).toFixed(0)} MAD</p>
-            <p className="mt-1 text-sm text-slate-600">per person</p>
-            <p className="mt-3 text-sm text-slate-700">
-              ⭐ {Number(activity.rating).toFixed(1)} ({activity.reviewCount} reviews)
-            </p>
-            <button className="mt-5 w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark">
-              Book now
-            </button>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h3 className="text-base font-semibold text-slate-900">Availability</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Availability calendar and slot selection will appear here in the upcoming booking flow.
-            </p>
-          </div>
+          <BookingSection
+            activityId={activity.id}
+            schedules={bookingSchedules}
+            defaultCustomerName={currentUser?.name}
+            defaultCustomerEmail={currentUser?.email}
+          />
         </aside>
       </div>
     </NavbarPageLayout>

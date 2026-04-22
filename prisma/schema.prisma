@@ -69,6 +69,7 @@ model Activity {
   isActive         Boolean          @default(true)
   provider         Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
   images           ActivityImage[]
+  schedules        Schedule[]
   bookings         Booking[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -89,18 +90,43 @@ model ActivityImage {
   @@index([activityId, sortOrder])
 }
 
-model Booking {
-  id         String        @id @default(cuid())
-  userId     String
-  activityId String
-  date       DateTime
-  status     BookingStatus @default(PENDING)
-  totalPrice Decimal       @db.Decimal(10, 2)
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activity   Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+model Schedule {
+  id             String    @id @default(cuid())
+  activityId     String
+  date           DateTime
+  startTime      DateTime
+  endTime        DateTime
+  capacity       Int
+  availableSpots Int
+  price          Decimal   @db.Decimal(10, 2)
+  isActive       Boolean   @default(true)
+  activity       Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  bookings       Booking[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  @@index([userId, date])
-  @@index([activityId, date])
+  @@index([activityId, date, isActive])
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  userId        String
+  activityId    String
+  scheduleId    String
+  participants  Int
+  totalPrice    Decimal       @db.Decimal(10, 2)
+  status        BookingStatus @default(PENDING)
+  customerName  String
+  customerEmail String
+  customerPhone String?
+  notes         String?
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity      Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  schedule      Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([activityId, createdAt])
+  @@index([scheduleId])
 }
