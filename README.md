@@ -47,6 +47,14 @@ components/
   Navbar.tsx
   SearchBar.tsx
   ActivityCard.tsx
+  SectionHeader.tsx
+features/
+  home/
+    components/
+      HeroSection.tsx
+      CategoriesSection.tsx
+      PopularActivitiesSection.tsx
+    data.ts
 lib/
   prisma.ts
   utils.ts
