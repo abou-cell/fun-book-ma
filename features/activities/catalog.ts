@@ -1,4 +1,5 @@
 import { ActivityCategory, Prisma } from "@prisma/client";
+import { unstable_cache } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
 
@@ -33,6 +34,8 @@ export const catalogQueryParamKeys = {
   sort: "sort",
 } as const;
 
+export type CatalogQueryParamKey = (typeof catalogQueryParamKeys)[keyof typeof catalogQueryParamKeys];
+
 export type CatalogFilters = {
   q?: string;
   city?: string;
@@ -41,65 +44,90 @@ export type CatalogFilters = {
   maxPrice?: number;
   duration?: string;
   minRating?: number;
-  sort?: SortOption;
+  sort: SortOption;
 };
 
-export function parseCatalogFilters(searchParams: Record<string, string | string[] | undefined>): CatalogFilters {
-  const get = (key: string) => {
-    const value = searchParams[key];
-    return Array.isArray(value) ? value[0] : value;
-  };
-  const getTrimmed = (key: string) => get(key)?.trim() || undefined;
-  const getPositiveNumber = (key: string) => {
-    const parsed = Number(get(key));
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-  };
+type SearchParamMap = Record<string, string | string[] | undefined>;
 
-  const categoryParam = get(catalogQueryParamKeys.category);
-  const normalizedCategory = categoryParam?.toUpperCase() as ActivityCategory | undefined;
-  const category = normalizedCategory && Object.values(ActivityCategory).includes(normalizedCategory) ? normalizedCategory : undefined;
+function getSearchParam(searchParams: SearchParamMap, key: CatalogQueryParamKey) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] : value;
+}
 
-  const sortParam = get(catalogQueryParamKeys.sort);
-  const sort = sortParam && sortParam in sortOptions ? (sortParam as SortOption) : CATALOG_DEFAULT_SORT;
+function getTrimmedSearchParam(searchParams: SearchParamMap, key: CatalogQueryParamKey) {
+  const value = getSearchParam(searchParams, key)?.trim();
+  return value ? value : undefined;
+}
 
-  const minPrice = getPositiveNumber(catalogQueryParamKeys.minPrice);
-  const maxPrice = getPositiveNumber(catalogQueryParamKeys.maxPrice);
-  const [normalizedMinPrice, normalizedMaxPrice] =
-    minPrice && maxPrice && minPrice > maxPrice ? [maxPrice, minPrice] : [minPrice, maxPrice];
+function getPositiveNumberSearchParam(searchParams: SearchParamMap, key: CatalogQueryParamKey) {
+  const value = Number(getSearchParam(searchParams, key));
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function isActivityCategory(value: string): value is ActivityCategory {
+  return Object.values(ActivityCategory).includes(value as ActivityCategory);
+}
+
+function isSortOption(value: string): value is SortOption {
+  return value in sortOptions;
+}
+
+export function parseCatalogFilters(searchParams: SearchParamMap): CatalogFilters {
+  const minPrice = getPositiveNumberSearchParam(searchParams, catalogQueryParamKeys.minPrice);
+  const maxPrice = getPositiveNumberSearchParam(searchParams, catalogQueryParamKeys.maxPrice);
+
+  const categoryParam = getSearchParam(searchParams, catalogQueryParamKeys.category);
+  const normalizedCategory = categoryParam?.toUpperCase();
+  const category = normalizedCategory && isActivityCategory(normalizedCategory) ? normalizedCategory : undefined;
+
+  const sortParam = getSearchParam(searchParams, catalogQueryParamKeys.sort);
+  const sort = sortParam && isSortOption(sortParam) ? sortParam : CATALOG_DEFAULT_SORT;
+
+  const [normalizedMinPrice, normalizedMaxPrice] = minPrice && maxPrice && minPrice > maxPrice ? [maxPrice, minPrice] : [minPrice, maxPrice];
+
+  const minRating = getPositiveNumberSearchParam(searchParams, catalogQueryParamKeys.rating);
 
   return {
-    q: getTrimmed(catalogQueryParamKeys.q),
-    city: getTrimmed(catalogQueryParamKeys.city),
+    q: getTrimmedSearchParam(searchParams, catalogQueryParamKeys.q),
+    city: getTrimmedSearchParam(searchParams, catalogQueryParamKeys.city),
     category,
     minPrice: normalizedMinPrice,
     maxPrice: normalizedMaxPrice,
-    duration: getTrimmed(catalogQueryParamKeys.duration),
-    minRating: getPositiveNumber(catalogQueryParamKeys.rating),
+    duration: getTrimmedSearchParam(searchParams, catalogQueryParamKeys.duration),
+    minRating: minRating && minRating <= 5 ? minRating : undefined,
     sort,
   };
 }
 
-export async function getCatalogFilterData() {
-  const [cities, durations] = await Promise.all([
-    prisma.activity.findMany({
-      where: { isActive: true },
-      distinct: ["city"],
-      select: { city: true },
-      orderBy: { city: "asc" },
-    }),
-    prisma.activity.findMany({
-      where: { isActive: true },
-      distinct: ["duration"],
-      select: { duration: true },
-      orderBy: { duration: "asc" },
-    }),
-  ]);
+const getCachedCatalogFilterData = unstable_cache(
+  async () => {
+    const [cities, durations] = await Promise.all([
+      prisma.activity.findMany({
+        where: { isActive: true },
+        distinct: ["city"],
+        select: { city: true },
+        orderBy: { city: "asc" },
+      }),
+      prisma.activity.findMany({
+        where: { isActive: true },
+        distinct: ["duration"],
+        select: { duration: true },
+        orderBy: { duration: "asc" },
+      }),
+    ]);
 
-  return {
-    cities: cities.map((item) => item.city),
-    durations: durations.map((item) => item.duration),
-    categories: Object.values(ActivityCategory),
-  };
+    return {
+      cities: cities.map((item) => item.city),
+      durations: durations.map((item) => item.duration),
+      categories: Object.values(ActivityCategory),
+    };
+  },
+  ["catalog-filter-data"],
+  { revalidate: 60 * 60 },
+);
+
+export async function getCatalogFilterData() {
+  return getCachedCatalogFilterData();
 }
 
 export async function getActivities(filters: CatalogFilters) {
@@ -126,33 +154,37 @@ export async function getActivities(filters: CatalogFilters) {
 }
 
 function buildActivityWhere(filters: CatalogFilters): Prisma.ActivityWhereInput {
+  const searchQuery = filters.q
+    ? {
+        OR: [
+          { title: { contains: filters.q, mode: "insensitive" } },
+          { shortDescription: { contains: filters.q, mode: "insensitive" } },
+          { description: { contains: filters.q, mode: "insensitive" } },
+        ],
+      }
+    : {};
+
+  const priceRange = filters.minPrice || filters.maxPrice
+    ? {
+        price: {
+          ...(filters.minPrice ? { gte: filters.minPrice } : {}),
+          ...(filters.maxPrice ? { lte: filters.maxPrice } : {}),
+        },
+      }
+    : {};
+
   return {
     isActive: true,
-    ...(filters.q
-      ? {
-          OR: [
-            { title: { contains: filters.q, mode: "insensitive" } },
-            { shortDescription: { contains: filters.q, mode: "insensitive" } },
-            { description: { contains: filters.q, mode: "insensitive" } },
-          ],
-        }
-      : {}),
+    ...searchQuery,
     ...(filters.city ? { city: { equals: filters.city, mode: "insensitive" } } : {}),
     ...(filters.category ? { category: filters.category } : {}),
     ...(filters.duration ? { duration: filters.duration } : {}),
     ...(filters.minRating ? { rating: { gte: filters.minRating } } : {}),
-    ...((filters.minPrice || filters.maxPrice)
-      ? {
-          price: {
-            ...(filters.minPrice ? { gte: filters.minPrice } : {}),
-            ...(filters.maxPrice ? { lte: filters.maxPrice } : {}),
-          },
-        }
-      : {}),
+    ...priceRange,
   };
 }
 
-function getActivityOrderBy(sort: SortOption | undefined): Prisma.ActivityOrderByWithRelationInput[] {
+function getActivityOrderBy(sort: SortOption): Prisma.ActivityOrderByWithRelationInput[] {
   if (sort === "priceAsc") {
     return [{ price: "asc" }];
   }

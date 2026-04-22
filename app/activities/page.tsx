@@ -7,7 +7,6 @@ import { SortDropdown } from "@/components/activities/SortDropdown";
 import { SectionHeader } from "@/components/SectionHeader";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
 import {
-  CATALOG_DEFAULT_SORT,
   activityCategoryLabels,
   getActivities,
   getCatalogFilterData,
@@ -44,7 +43,7 @@ export default async function ActivitiesPage({ searchParams }: ActivitiesPagePro
               Showing <span className="font-semibold text-slate-900">{activities.length}</span> activities
             </p>
             <div className="flex items-center gap-2">
-              <SortDropdown value={filters.sort ?? CATALOG_DEFAULT_SORT} />
+              <SortDropdown value={filters.sort} />
               <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
                 Update
               </button>

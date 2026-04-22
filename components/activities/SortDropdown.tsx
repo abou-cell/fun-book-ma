@@ -1,5 +1,7 @@
 import { catalogQueryParamKeys, sortOptions, type SortOption } from "@/features/activities/catalog";
 
+import { FilterSelect } from "./FilterControls";
+
 type SortDropdownProps = {
   value: SortOption;
 };
@@ -7,21 +9,16 @@ type SortDropdownProps = {
 export function SortDropdown({ value }: SortDropdownProps) {
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="sort" className="text-sm font-medium text-slate-700">
+      <label htmlFor={catalogQueryParamKeys.sort} className="text-sm font-medium text-slate-700">
         Sort
       </label>
-      <select
-        id={catalogQueryParamKeys.sort}
-        name={catalogQueryParamKeys.sort}
-        defaultValue={value}
-        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-      >
+      <FilterSelect id={catalogQueryParamKeys.sort} name={catalogQueryParamKeys.sort} defaultValue={value}>
         {Object.entries(sortOptions).map(([key, label]) => (
           <option key={key} value={key}>
             {label}
           </option>
         ))}
-      </select>
+      </FilterSelect>
     </div>
   );
 }
