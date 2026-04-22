@@ -27,6 +27,13 @@ type SuccessfulPaymentEmailJob = {
   amount: number;
 };
 
+type PaymentResult = {
+  bookingId: string;
+  status: PaymentStatus;
+  redirectPath: string;
+  emailJob: SuccessfulPaymentEmailJob | null;
+};
+
 function buildPaymentError(message: string) {
   return new Error(message);
 }
@@ -37,20 +44,27 @@ function validatePaymentRequest(input: ProcessPaymentInput) {
   }
 }
 
+function getRedirectPath(bookingId: string, status: PaymentStatus) {
+  return status === PaymentStatus.PAID ? `/checkout/success/${bookingId}` : `/checkout/failed/${bookingId}`;
+}
+
 function sendPaymentSuccessEmailInBackground(payload: SuccessfulPaymentEmailJob | null) {
   if (!payload) {
     return;
   }
 
-  void sendPaymentSuccessEmail(payload);
+  queueMicrotask(() => {
+    void sendPaymentSuccessEmail(payload).catch((error) => {
+      console.warn("[payments] payment success notification failed", {
+        bookingId: payload.bookingId,
+        error,
+      });
+    });
+  });
 }
 
-export async function createCheckoutPaymentIntent(
-  bookingId: string,
-  userId: string,
-  provider: PaymentProvider = PaymentProvider.MOCK_GATEWAY,
-) {
-  const booking = await prisma.booking.findFirst({
+async function findBookingForCheckout(bookingId: string, userId: string) {
+  return prisma.booking.findFirst({
     where: { id: bookingId, userId },
     select: {
       id: true,
@@ -60,6 +74,14 @@ export async function createCheckoutPaymentIntent(
       totalPrice: true,
     },
   });
+}
+
+export async function createCheckoutPaymentIntent(
+  bookingId: string,
+  userId: string,
+  provider: PaymentProvider = PaymentProvider.MOCK_GATEWAY,
+) {
+  const booking = await findBookingForCheckout(bookingId, userId);
 
   if (!booking) {
     throw buildPaymentError("Booking not found.");
@@ -88,7 +110,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
   validatePaymentRequest(input);
 
   const transactionResult = await prisma.$transaction(
-    async (tx) => {
+    async (tx): Promise<PaymentResult> => {
       const booking = await tx.booking.findFirst({
         where: { id: input.bookingId, userId: input.userId },
         include: {
@@ -113,7 +135,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
         return {
           bookingId: booking.id,
           status: PaymentStatus.PAID,
-          redirectPath: `/checkout/success/${booking.id}`,
+          redirectPath: getRedirectPath(booking.id, PaymentStatus.PAID),
           emailJob: null,
         };
       }
@@ -148,6 +170,36 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
       }
 
       const gateway = getPaymentGateway(input.provider);
+      const existingPayment = await tx.payment.findFirst({
+        where: {
+          bookingId: booking.id,
+          reference: input.intentReference,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (existingPayment) {
+        if (existingPayment.status === PaymentStatus.PAID && booking.paymentStatus !== PaymentStatus.PAID) {
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              paymentMethod: input.paymentMethod,
+              paymentStatus: PaymentStatus.PAID,
+              paymentReference: existingPayment.reference,
+              paidAt: booking.paidAt ?? new Date(),
+              status: BookingStatus.CONFIRMED,
+            },
+          });
+        }
+
+        return {
+          bookingId: booking.id,
+          status: existingPayment.status,
+          redirectPath: getRedirectPath(booking.id, existingPayment.status),
+          emailJob: null,
+        };
+      }
+
       const confirmation = await gateway.confirmPayment({
         bookingId: booking.id,
         amount: Number(booking.totalPrice),
@@ -197,7 +249,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
       return {
         bookingId: booking.id,
         status: updatedBooking.paymentStatus,
-        redirectPath: paid ? `/checkout/success/${booking.id}` : `/checkout/failed/${booking.id}`,
+        redirectPath: getRedirectPath(booking.id, updatedBooking.paymentStatus),
         emailJob,
       };
     },

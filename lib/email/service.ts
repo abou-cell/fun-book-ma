@@ -7,6 +7,8 @@ type EmailSendResult = {
   reason?: string;
 };
 
+const EMAIL_SEND_TIMEOUT_MS = 8_000;
+
 function normalizeRecipient(email: string) {
   return email.trim().toLowerCase();
 }
@@ -17,16 +19,39 @@ function isValidEmail(email: string) {
 
 function sanitizeEmailPayload(payload: EmailPayload): EmailPayload | null {
   const recipient = normalizeRecipient(payload.to);
+  const subject = payload.subject.trim();
+  const html = payload.html.trim();
+  const text = payload.text?.trim();
 
-  if (!isValidEmail(recipient) || !payload.subject.trim() || !payload.html.trim()) {
+  if (!isValidEmail(recipient) || !subject || !html) {
     return null;
   }
 
   return {
     ...payload,
     to: recipient,
-    subject: payload.subject.trim(),
+    subject,
+    html,
+    ...(text ? { text } : {}),
   };
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timeoutId: NodeJS.Timeout | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("email_send_timeout"));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export async function sendTransactionalEmail(payload: EmailPayload): Promise<EmailSendResult> {
@@ -41,7 +66,7 @@ export async function sendTransactionalEmail(payload: EmailPayload): Promise<Ema
   }
 
   try {
-    await mockEmailSender.send(safePayload);
+    await withTimeout(mockEmailSender.send(safePayload), EMAIL_SEND_TIMEOUT_MS);
 
     return {
       ok: true,
@@ -55,7 +80,7 @@ export async function sendTransactionalEmail(payload: EmailPayload): Promise<Ema
 
     return {
       ok: false,
-      reason: "send_failure",
+      reason: error instanceof Error ? error.message : "send_failure",
     };
   }
 }

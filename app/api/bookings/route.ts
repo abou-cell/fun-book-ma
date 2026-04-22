@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { bookingRequestSchema } from "@/lib/booking/validation";
 import { sendBookingCreatedEmails } from "@/lib/email/booking-notifications";
-import { calculateBookingFinancials } from "@/lib/financials/commission";
+import { calculateCheckoutAmounts } from "@/lib/financials/commission";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -74,8 +74,9 @@ export async function POST(request: Request) {
       }
 
       const subtotal = Number(schedule.price.mul(payload.participants));
-      const { commissionAmount, providerPayoutAmount } = calculateBookingFinancials(
+      const { commissionAmount, providerPayoutAmount, total, serviceFee } = calculateCheckoutAmounts(
         subtotal,
+        null,
         Number(schedule.activity.provider.commissionRate),
       );
 
@@ -85,8 +86,9 @@ export async function POST(request: Request) {
           activityId: schedule.activityId,
           scheduleId: schedule.id,
           participants: payload.participants,
-          totalPrice: subtotal,
+          totalPrice: total,
           subtotal,
+          serviceFee: serviceFee > 0 ? serviceFee : null,
           commissionAmount,
           providerPayoutAmount,
           paymentStatus: PaymentStatus.UNPAID,

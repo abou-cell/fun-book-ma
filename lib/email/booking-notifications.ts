@@ -36,11 +36,16 @@ export async function sendBookingCreatedEmails(context: NotificationContext) {
     amount,
   });
 
-  const customerResult = await sendTransactionalEmail({
-    to: context.customerEmail,
-    ...customerTemplate,
-  });
-  trackNotificationFailure("booking_customer", customerResult);
+  const emailJobs: Promise<void>[] = [];
+
+  emailJobs.push(
+    sendTransactionalEmail({
+      to: context.customerEmail,
+      ...customerTemplate,
+    }).then((customerResult) => {
+      trackNotificationFailure("booking_customer", customerResult);
+    }),
+  );
 
   if (context.providerEmail) {
     const providerTemplate = providerNewBookingNotificationTemplate({
@@ -50,12 +55,17 @@ export async function sendBookingCreatedEmails(context: NotificationContext) {
       amount,
     });
 
-    const providerResult = await sendTransactionalEmail({
-      to: context.providerEmail,
-      ...providerTemplate,
-    });
-    trackNotificationFailure("booking_provider", providerResult);
+    emailJobs.push(
+      sendTransactionalEmail({
+        to: context.providerEmail,
+        ...providerTemplate,
+      }).then((providerResult) => {
+        trackNotificationFailure("booking_provider", providerResult);
+      }),
+    );
   }
+
+  await Promise.allSettled(emailJobs);
 }
 
 export async function sendPaymentSuccessEmail(context: NotificationContext) {
@@ -67,9 +77,34 @@ export async function sendPaymentSuccessEmail(context: NotificationContext) {
     amount,
   });
 
-  const customerResult = await sendTransactionalEmail({
-    to: context.customerEmail,
-    ...customerTemplate,
-  });
-  trackNotificationFailure("payment_customer", customerResult);
+  const emailJobs: Promise<void>[] = [];
+
+  emailJobs.push(
+    sendTransactionalEmail({
+      to: context.customerEmail,
+      ...customerTemplate,
+    }).then((customerResult) => {
+      trackNotificationFailure("payment_customer", customerResult);
+    }),
+  );
+
+  if (context.providerEmail) {
+    const providerTemplate = providerNewBookingNotificationTemplate({
+      customerName: context.customerName,
+      bookingId: context.bookingId,
+      activityTitle: context.activityTitle,
+      amount,
+    });
+
+    emailJobs.push(
+      sendTransactionalEmail({
+        to: context.providerEmail,
+        ...providerTemplate,
+      }).then((providerResult) => {
+        trackNotificationFailure("payment_provider", providerResult);
+      }),
+    );
+  }
+
+  await Promise.allSettled(emailJobs);
 }

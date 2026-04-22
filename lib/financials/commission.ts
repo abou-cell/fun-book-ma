@@ -9,11 +9,16 @@ export type CommissionBreakdown = {
   providerPayoutAmount: number;
 };
 
+export type CheckoutAmountBreakdown = CommissionBreakdown & {
+  serviceFee: number;
+  total: number;
+};
+
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-function sanitizeCurrencyAmount(value: number) {
+export function sanitizeCurrencyAmount(value: number) {
   if (!Number.isFinite(value) || Number.isNaN(value)) {
     return 0;
   }
@@ -34,7 +39,7 @@ export function resolveCommissionRate(rate?: number | null) {
     return MAX_COMMISSION_RATE;
   }
 
-  return rate;
+  return roundCurrency(rate);
 }
 
 export function calculateCommission(subtotal: number, commissionRate?: number | null) {
@@ -59,5 +64,21 @@ export function calculateBookingFinancials(subtotal: number, commissionRate?: nu
     commissionRate: normalizedRate,
     commissionAmount,
     providerPayoutAmount,
+  };
+}
+
+export function calculateCheckoutAmounts(
+  subtotal: number,
+  serviceFee?: number | null,
+  commissionRate?: number | null,
+): CheckoutAmountBreakdown {
+  const baseSubtotal = sanitizeCurrencyAmount(subtotal);
+  const normalizedServiceFee = sanitizeCurrencyAmount(serviceFee ?? 0);
+  const financials = calculateBookingFinancials(baseSubtotal, commissionRate);
+
+  return {
+    ...financials,
+    serviceFee: normalizedServiceFee,
+    total: roundCurrency(baseSubtotal + normalizedServiceFee),
   };
 }
