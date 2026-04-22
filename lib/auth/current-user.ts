@@ -1,17 +1,18 @@
 import { cache } from "react";
 
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth/session";
 
 export const getCurrentUser = cache(async function getCurrentUser() {
-  const session = await getSession();
+  const session = await auth();
+  const userId = session?.user?.id;
 
-  if (!session?.sub) {
+  if (!userId) {
     return null;
   }
 
   return prisma.user.findUnique({
-    where: { id: session.sub },
+    where: { id: userId },
     select: {
       id: true,
       name: true,

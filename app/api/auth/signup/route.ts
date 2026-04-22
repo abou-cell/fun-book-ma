@@ -1,17 +1,9 @@
 import { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 
-import { createSessionForUser, validationErrorResponse } from "@/lib/auth/http";
 import { hashPassword } from "@/lib/auth/password";
 import { signupSchema } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
-
-type CreatedUserRecord = {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-};
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +11,9 @@ export async function POST(request: Request) {
     const parsed = signupSchema.safeParse(body);
 
     if (!parsed.success) {
-      return validationErrorResponse(parsed.error.flatten().fieldErrors);
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+
+      return NextResponse.json({ error: "Invalid input", fieldErrors }, { status: 400 });
     }
 
     const { name, email, password, role } = parsed.data;
@@ -30,16 +24,20 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await hashPassword(password);
-    const createdRows = await prisma.$queryRaw<CreatedUserRecord[]>`
-      INSERT INTO "User" (name, email, password, role, "createdAt", "updatedAt")
-      VALUES (${name}, ${email}, ${hashedPassword}, ${role}::"UserRole", NOW(), NOW())
-      RETURNING id, name, email, role
-    `;
-    const user = createdRows[0];
-
-    if (!user) {
-      return NextResponse.json({ error: "Unable to create account" }, { status: 500 });
-    }
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    });
 
     if (user.role === UserRole.PROVIDER) {
       await prisma.provider.create({
@@ -51,13 +49,6 @@ export async function POST(request: Request) {
         },
       });
     }
-
-    await createSessionForUser({
-      sub: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    });
 
     return NextResponse.json({ user }, { status: 201 });
   } catch {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Menu, Mountain } from "lucide-react";
 
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import { getCurrentUser } from "@/lib/auth/current-user";
 
 export async function Navbar() {
@@ -28,11 +29,7 @@ export async function Navbar() {
               <Link href="/account" className="transition hover:text-slate-900">
                 Account
               </Link>
-              <form action="/api/auth/logout" method="post">
-                <button className="rounded-full border border-slate-200 px-4 py-2 transition hover:border-slate-300 hover:bg-slate-100">
-                  Sign out
-                </button>
-              </form>
+              <SignOutButton />
             </>
           ) : (
             <>

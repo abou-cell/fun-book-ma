@@ -12,7 +12,7 @@ export default async function ProviderDashboardPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-medium text-brand">Provider dashboard</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">Manage your experiences</h1>
-        <p className="mt-2 text-slate-600">Signed in as {user.email}. Publish, update, and monitor activity bookings here.</p>
+        <p className="mt-2 text-slate-600">Signed in as {user.email} with role {user.role}. Publish, update, and monitor activity bookings here.</p>
       </div>
     </NavbarPageLayout>
   );

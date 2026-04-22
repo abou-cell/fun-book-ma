@@ -1,56 +1,34 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-import { DEFAULT_AUTHENTICATED_ROUTE, SESSION_COOKIE_NAME, getLandingPageForRole } from "@/lib/auth/constants";
-import { verifySessionToken } from "@/lib/auth/session";
+import { auth } from "@/auth";
+import { DEFAULT_AUTHENTICATED_ROUTE, getLandingPageForRole } from "@/lib/auth/constants";
 
-type ProtectedRouteGroup = {
-  routes: string[];
-  requiredRole?: "PROVIDER" | "ADMIN";
-};
+const roleProtectedRoutes = [
+  { prefix: "/provider/dashboard", requiredRole: "PROVIDER" },
+  { prefix: "/admin/dashboard", requiredRole: "ADMIN" },
+] as const;
 
-const protectedRouteGroups: ProtectedRouteGroup[] = [
-  { routes: ["/account"] },
-  { routes: ["/provider/dashboard"], requiredRole: "PROVIDER" },
-  { routes: ["/admin/dashboard"], requiredRole: "ADMIN" },
-];
+export default auth((request) => {
+  const pathname = request.nextUrl.pathname;
+  const session = request.auth;
 
-function getLoginRedirect(request: NextRequest, pathname: string) {
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("redirectTo", pathname);
+  if (!session?.user) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirectTo", pathname);
 
-  return NextResponse.redirect(loginUrl);
-}
-
-function getMatchedGroup(pathname: string) {
-  return protectedRouteGroups.find((group) => group.routes.some((route) => pathname.startsWith(route)));
-}
-
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const matchedGroup = getMatchedGroup(pathname);
-
-  if (!matchedGroup) {
-    return NextResponse.next();
+    return NextResponse.redirect(loginUrl);
   }
 
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const matched = roleProtectedRoutes.find((route) => pathname.startsWith(route.prefix));
 
-  if (!token) {
-    return getLoginRedirect(request, pathname);
-  }
-
-  const session = await verifySessionToken(token);
-
-  if (!session) {
-    return getLoginRedirect(request, pathname);
-  }
-
-  if (matchedGroup.requiredRole && session.role !== matchedGroup.requiredRole) {
-    return NextResponse.redirect(new URL(getLandingPageForRole(session.role) ?? DEFAULT_AUTHENTICATED_ROUTE, request.url));
+  if (matched && session.user.role !== matched.requiredRole) {
+    return NextResponse.redirect(
+      new URL(getLandingPageForRole(session.user.role) ?? DEFAULT_AUTHENTICATED_ROUTE, request.url),
+    );
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: ["/account/:path*", "/provider/dashboard/:path*", "/admin/dashboard/:path*"],
