@@ -19,6 +19,15 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum ActivityCategory {
+  ADVENTURE
+  SURF
+  WELLNESS
+  KIDS
+  CULTURE
+  NATURE
+}
+
 model User {
   id        String    @id @default(cuid())
   name      String
@@ -44,19 +53,40 @@ model Provider {
 }
 
 model Activity {
-  id          String    @id @default(cuid())
-  providerId  String
-  title       String
-  description String
-  city        String
-  category    String
-  price       Decimal   @db.Decimal(10, 2)
-  provider    Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  bookings    Booking[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id               String           @id @default(cuid())
+  providerId       String
+  title            String
+  slug             String           @unique
+  shortDescription String
+  description      String
+  city             String
+  category         ActivityCategory
+  price            Decimal          @db.Decimal(10, 2)
+  rating           Decimal          @default(0) @db.Decimal(3, 2)
+  reviewCount      Int              @default(0)
+  duration         String
+  coverImage       String
+  isActive         Boolean          @default(true)
+  provider         Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  images           ActivityImage[]
+  bookings         Booking[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@index([city, category])
+  @@index([isActive, createdAt])
+}
+
+model ActivityImage {
+  id         String   @id @default(cuid())
+  activityId String
+  imageUrl   String
+  altText    String?
+  sortOrder  Int      @default(0)
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([activityId, sortOrder])
 }
 
 model Booking {
