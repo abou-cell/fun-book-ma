@@ -39,7 +39,7 @@ function buildPaymentError(message: string) {
 }
 
 function validatePaymentRequest(input: ProcessPaymentInput) {
-  if (input.paymentMethod === PaymentMethod.ONLINE_MOCK && !input.intentReference) {
+  if (input.paymentMethod === PaymentMethod.ONLINE_CARD && !input.intentReference) {
     throw buildPaymentError("Payment authorization expired. Please retry checkout.");
   }
 }
@@ -140,11 +140,11 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
         };
       }
 
-      if (input.paymentMethod === PaymentMethod.CASH_ON_SITE) {
+      if (input.paymentMethod === PaymentMethod.CASH_ON_SITE || input.paymentMethod === PaymentMethod.PARTIAL_PAYMENT) {
         const updated = await tx.booking.update({
           where: { id: booking.id },
           data: {
-            paymentMethod: PaymentMethod.CASH_ON_SITE,
+            paymentMethod: input.paymentMethod,
             paymentStatus: PaymentStatus.PENDING,
             status: BookingStatus.CONFIRMED,
           },
@@ -157,7 +157,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
             amount: booking.totalPrice,
             currency: "MAD",
             status: PaymentStatus.PENDING,
-            rawPayload: { mode: "cash_on_site" },
+            rawPayload: { mode: input.paymentMethod === PaymentMethod.PARTIAL_PAYMENT ? "partial_payment_placeholder" : "cash_on_site" },
           },
         });
 

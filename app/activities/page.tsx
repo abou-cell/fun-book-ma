@@ -13,6 +13,7 @@ import {
 
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildPageMetadata } from "@/lib/seo/metadata";
+import { getRequestLocale } from "@/lib/i18n/server";
 import { buildActivitiesItemListSchema, buildBreadcrumbSchema } from "@/lib/seo/structured-data";
 
 export const revalidate = 300;
@@ -29,6 +30,7 @@ type ActivitiesPageProps = {
 };
 
 export default async function ActivitiesPage({ searchParams }: ActivitiesPageProps) {
+  const locale = await getRequestLocale();
   const resolvedSearchParams = await searchParams;
   const filters = parseCatalogFilters(resolvedSearchParams);
 
@@ -83,7 +85,7 @@ export default async function ActivitiesPage({ searchParams }: ActivitiesPagePro
                   category={activityCategoryLabels[activity.category]}
                   price={Number(activity.price)}
                   image={activity.coverImage}
-                  href={`/activities/${activity.slug}`}
+                  href={`/${locale}/activities/${activity.slug}`}
                   rating={Number(activity.rating)}
                   reviewCount={activity.reviewCount}
                   duration={activity.duration}

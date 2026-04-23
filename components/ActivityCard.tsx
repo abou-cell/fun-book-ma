@@ -1,6 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { getRequestLocale } from "@/lib/i18n/server";
+import { formatCurrency } from "@/lib/localization/format";
+
 export type ActivityCardProps = {
   title: string;
   city: string;
@@ -14,9 +17,7 @@ export type ActivityCardProps = {
   shortDescription?: string;
 };
 
-const madPriceFormatter = new Intl.NumberFormat("en-US");
-
-export function ActivityCard({
+export async function ActivityCard({
   title,
   city,
   category,
@@ -28,6 +29,7 @@ export function ActivityCard({
   duration,
   shortDescription,
 }: ActivityCardProps) {
+  const locale = await getRequestLocale();
   const content = (
     <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition hover:-translate-y-1 hover:shadow-lg">
       <div className="relative aspect-[4/3] w-full">
@@ -55,7 +57,7 @@ export function ActivityCard({
             </span>
           ) : null}
         </div>
-        <p className="text-sm font-semibold text-slate-900">From {madPriceFormatter.format(price)} MAD</p>
+        <p className="text-sm font-semibold text-slate-900">{formatCurrency(price, locale)}</p>
       </div>
     </article>
   );

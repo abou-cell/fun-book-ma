@@ -265,6 +265,13 @@ export async function updatePlatformSettingsAction(formData: FormData) {
   const parsed = z
     .object({
       defaultCommissionRate: z.coerce.number().min(0).max(1),
+      defaultLocale: z.string().min(2).max(5),
+      enabledLocales: z.string().min(2),
+      defaultCurrency: z.string().min(3).max(3),
+      supportWhatsappNumber: z.string().optional(),
+      enabledPaymentMethods: z.array(z.string()).min(1),
+      partialPaymentEnabled: z.boolean().default(false),
+      depositPercentage: z.coerce.number().min(0).max(100).optional(),
       supportedCurrencies: z.string().min(1),
       cancellationPolicyDefault: z.string().min(5).max(1000),
       emailNotificationsEnabled: z.boolean().default(false),
@@ -273,6 +280,13 @@ export async function updatePlatformSettingsAction(formData: FormData) {
     })
     .parse({
       defaultCommissionRate: formData.get("defaultCommissionRate"),
+      defaultLocale: formData.get("defaultLocale"),
+      enabledLocales: formData.get("enabledLocales"),
+      defaultCurrency: formData.get("defaultCurrency"),
+      supportWhatsappNumber: optionalText(formData.get("supportWhatsappNumber")) ?? undefined,
+      enabledPaymentMethods: formData.getAll("enabledPaymentMethods").map((value) => String(value)),
+      partialPaymentEnabled: formData.get("partialPaymentEnabled") === "on",
+      depositPercentage: optionalText(formData.get("depositPercentage")) ?? undefined,
       supportedCurrencies: formData.get("supportedCurrencies"),
       cancellationPolicyDefault: formData.get("cancellationPolicyDefault"),
       emailNotificationsEnabled: formData.get("emailNotificationsEnabled") === "on",
@@ -285,10 +299,14 @@ export async function updatePlatformSettingsAction(formData: FormData) {
     create: {
       id: 1,
       ...parsed,
+      enabledLocales: parsed.enabledLocales.split(",").map((item) => item.trim()).filter(Boolean),
+      enabledPaymentMethods: parsed.enabledPaymentMethods as any,
       supportedCurrencies: parsed.supportedCurrencies.split(",").map((item) => item.trim()).filter(Boolean),
     },
     update: {
       ...parsed,
+      enabledLocales: parsed.enabledLocales.split(",").map((item) => item.trim()).filter(Boolean),
+      enabledPaymentMethods: parsed.enabledPaymentMethods as any,
       supportedCurrencies: parsed.supportedCurrencies.split(",").map((item) => item.trim()).filter(Boolean),
     },
   });
