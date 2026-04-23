@@ -44,8 +44,9 @@ enum PaymentStatus {
 }
 
 enum PaymentMethod {
-  ONLINE_MOCK
+  ONLINE_CARD
   CASH_ON_SITE
+  PARTIAL_PAYMENT
 }
 
 enum PaymentProvider {
@@ -137,6 +138,7 @@ model Activity {
   schedules        Schedule[]
   bookings         Booking[]
   createdAt        DateTime                 @default(now())
+  translations     ActivityTranslation[]
   updatedAt        DateTime                 @updatedAt
 
   @@index([city, category])
@@ -263,6 +265,7 @@ model Category {
   isActive  Boolean  @default(true)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
+  translations CategoryTranslation[]
   updatedAt DateTime @updatedAt
 }
 
@@ -273,11 +276,19 @@ model City {
   isActive  Boolean  @default(true)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
+  translations CityTranslation[]
   updatedAt DateTime @updatedAt
 }
 
 model PlatformSetting {
   id                        Int      @id @default(1)
+  defaultLocale             String   @default("fr")
+  enabledLocales            String[] @default(["fr", "ar", "en"])
+  defaultCurrency           String   @default("MAD")
+  supportWhatsappNumber     String?
+  enabledPaymentMethods     PaymentMethod[] @default([ONLINE_CARD, CASH_ON_SITE])
+  partialPaymentEnabled     Boolean  @default(false)
+  depositPercentage         Decimal? @db.Decimal(5, 2)
   defaultCommissionRate     Decimal  @default(0.10) @db.Decimal(5, 4)
   supportedCurrencies       String[] @default(["MAD"])
   cancellationPolicyDefault String   @default("Free cancellation up to 24 hours before activity")
@@ -300,4 +311,44 @@ model AdminActionLog {
 
   @@index([adminUserId, createdAt])
   @@index([entityType, entityId])
+}
+
+
+model ActivityTranslation {
+  id               String   @id @default(cuid())
+  activityId       String
+  locale           String
+  title            String
+  shortDescription String
+  description      String
+  seoTitle         String?
+  seoDescription   String?
+  faq              Json?
+  activity         Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, locale])
+  @@index([locale])
+}
+
+model CategoryTranslation {
+  id         String   @id @default(cuid())
+  categoryId String
+  locale     String
+  name       String
+  seoText    String?
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, locale])
+}
+
+model CityTranslation {
+  id         String @id @default(cuid())
+  cityId     String
+  locale     String
+  name       String
+  content    String?
+  seoText    String?
+  city       City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([cityId, locale])
 }

@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { getLandingPageForRole } from "@/lib/auth/constants";
+import { useCurrentLocale, withCurrentLocalePath } from "@/lib/i18n/client";
 
 type AuthMode = "login" | "signup";
 
@@ -22,6 +23,7 @@ const roleOptions = [
 export function AuthForm({ mode }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const locale = useCurrentLocale();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -72,7 +74,7 @@ export function AuthForm({ mode }: Props) {
         return;
       }
 
-      router.push(isLogin ? getLandingPageForRole() : getLandingPageForRole(role));
+      router.push(withCurrentLocalePath(locale, isLogin ? getLandingPageForRole() : getLandingPageForRole(role)));
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Something went wrong");
@@ -167,7 +169,7 @@ export function AuthForm({ mode }: Props) {
 
       <p className="mt-6 text-center text-sm text-slate-600">
         {isLogin ? "No account yet?" : "Already have an account?"}{" "}
-        <Link href={isLogin ? "/signup" : "/login"} className="font-medium text-brand hover:underline">
+        <Link href={withCurrentLocalePath(locale, isLogin ? "/signup" : "/login")} className="font-medium text-brand hover:underline">
           {isLogin ? "Create one" : "Sign in"}
         </Link>
       </p>

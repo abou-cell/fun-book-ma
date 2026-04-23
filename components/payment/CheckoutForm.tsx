@@ -2,63 +2,61 @@
 
 import { PaymentMethod } from "@prisma/client";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-const paymentOptions: Array<{ value: PaymentMethod; label: string; description: string }> = [
-  { value: PaymentMethod.ONLINE_MOCK, label: "Online card (mock)", description: "Simulated online payment for development." },
-  { value: PaymentMethod.CASH_ON_SITE, label: "Cash on site", description: "Pay directly to the provider when the activity starts." },
-];
+import { PaymentMethodSelector } from "@/components/payment/PaymentMethodSelector";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { useCurrentLocale, withCurrentLocalePath } from "@/lib/i18n/client";
 
-export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId: string; initialIntentReference?: string }) {
+export function CheckoutForm({
+  bookingId,
+  initialIntentReference,
+  enabledMethods,
+}: {
+  bookingId: string;
+  initialIntentReference?: string;
+  enabledMethods: PaymentMethod[];
+}) {
   const router = useRouter();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.ONLINE_MOCK);
+  const locale = useCurrentLocale();
+  const dict = getDictionary(locale);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(enabledMethods[0] ?? PaymentMethod.ONLINE_CARD);
   const [intentReference, setIntentReference] = useState<string | undefined>(initialIntentReference);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  const paymentOptions = useMemo(
+    () => [
+      { value: PaymentMethod.ONLINE_CARD, label: dict["payment.onlineCard"], description: dict["payment.onlineCardDescription"] },
+      { value: PaymentMethod.CASH_ON_SITE, label: dict["payment.cashOnSite"], description: dict["payment.cashOnSiteDescription"] },
+      { value: PaymentMethod.PARTIAL_PAYMENT, label: dict["payment.partialPayment"], description: dict["payment.partialPaymentDescription"] },
+    ].filter((option) => enabledMethods.includes(option.value)),
+    [dict, enabledMethods],
+  );
+
   useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
+    return () => abortRef.current?.abort();
   }, []);
 
   useEffect(() => {
-    if (paymentMethod !== PaymentMethod.ONLINE_MOCK || intentReference || isSubmitting) {
-      return;
-    }
+    if (paymentMethod !== PaymentMethod.ONLINE_CARD || intentReference || isSubmitting) return;
 
     const controller = new AbortController();
-
     void (async () => {
       try {
-        const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, {
-          method: "POST",
-          signal: controller.signal,
-        });
-
-        if (!intentResponse.ok) {
-          return;
-        }
-
+        const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, { method: "POST", signal: controller.signal });
+        if (!intentResponse.ok) return;
         const intentPayload = (await intentResponse.json()) as { reference?: string };
-        if (intentPayload.reference) {
-          setIntentReference(intentPayload.reference);
-        }
-      } catch {
-        // Intentionally silent: pre-warming is best-effort.
-      }
+        if (intentPayload.reference) setIntentReference(intentPayload.reference);
+      } catch {}
     })();
 
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [bookingId, intentReference, isSubmitting, paymentMethod]);
 
   const handleConfirmPayment = async () => {
-    if (isSubmitting) {
-      return;
-    }
+    if (isSubmitting) return;
 
     setError(null);
     setIsSubmitting(true);
@@ -67,19 +65,13 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
 
     try {
       let effectiveIntentReference = intentReference;
-
-      if (paymentMethod === PaymentMethod.ONLINE_MOCK && !effectiveIntentReference) {
-        const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, {
-          method: "POST",
-          signal: abortRef.current.signal,
-        });
+      if (paymentMethod === PaymentMethod.ONLINE_CARD && !effectiveIntentReference) {
+        const intentResponse = await fetch(`/api/checkout/${bookingId}/intent`, { method: "POST", signal: abortRef.current.signal });
         const intentPayload = (await intentResponse.json()) as { error?: string; reference?: string };
-
         if (!intentResponse.ok || !intentPayload.reference) {
           setError(intentPayload.error ?? "Unable to start payment.");
           return;
         }
-
         effectiveIntentReference = intentPayload.reference;
         setIntentReference(intentPayload.reference);
       }
@@ -92,13 +84,12 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
       });
 
       const payload = (await response.json()) as { error?: string; redirectPath?: string };
-
       if (!response.ok || !payload.redirectPath) {
         setError(payload.error ?? "Payment could not be completed.");
         return;
       }
 
-      router.push(payload.redirectPath);
+      router.push(withCurrentLocalePath(locale, payload.redirectPath));
       router.refresh();
     } catch {
       setError("Payment could not be completed.");
@@ -110,36 +101,11 @@ export function CheckoutForm({ bookingId, initialIntentReference }: { bookingId:
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        {paymentOptions.map((option) => (
-          <label key={option.value} className="block rounded-xl border border-slate-200 p-3 text-sm">
-            <div className="flex items-start gap-2">
-              <input
-                type="radio"
-                name="paymentMethod"
-                checked={paymentMethod === option.value}
-                onChange={() => setPaymentMethod(option.value)}
-                className="mt-1"
-              />
-              <div>
-                <p className="font-medium text-slate-900">{option.label}</p>
-                <p className="text-slate-600">{option.description}</p>
-              </div>
-            </div>
-          </label>
-        ))}
-      </div>
-
+      <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} options={paymentOptions} />
       {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
-
       <div className="sticky bottom-0 z-10 -mx-6 border-t border-slate-200 bg-white/95 px-6 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 sm:static sm:mx-0 sm:border-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-        <button
-          type="button"
-          onClick={handleConfirmPayment}
-          disabled={isSubmitting}
-          className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          {isSubmitting ? "Processing..." : "Confirm & pay"}
+        <button type="button" onClick={handleConfirmPayment} disabled={isSubmitting} className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300">
+          {isSubmitting ? dict["checkout.processing"] : dict["checkout.confirmAndPay"]}
         </button>
       </div>
     </div>

@@ -224,6 +224,7 @@ async function fetchActivityBySlug(slug: string) {
         select: {
           businessName: true,
           city: true,
+          whatsapp: true,
         },
       },
       images: {

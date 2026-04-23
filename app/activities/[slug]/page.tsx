@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 
 import { BookingSection } from "@/components/booking/BookingSection";
 import { SectionHeader } from "@/components/SectionHeader";
+import { WhatsAppContactCard } from "@/components/whatsapp/WhatsAppContactCard";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { activityCategoryLabels, getActivityBySlug, getPublicSchedulesForActivity } from "@/features/activities/catalog";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { validateReviewOwnership } from "@/lib/reviews/validation";
 import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo/metadata";
+import { getRequestLocale } from "@/lib/i18n/server";
 import { buildActivityStructuredData, buildBreadcrumbSchema } from "@/lib/seo/structured-data";
 
 export const revalidate = 300;
@@ -41,6 +43,7 @@ export async function generateMetadata({ params }: ActivityDetailsPageProps): Pr
 }
 
 export default async function ActivityDetailsPage({ params }: ActivityDetailsPageProps) {
+  const locale = await getRequestLocale();
   const { slug } = await params;
   const [activity, currentUser] = await Promise.all([getActivityBySlug(slug), getCurrentUser()]);
 
@@ -70,9 +73,9 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
   const gallery = activity.images.length > 0 ? activity.images : [{ imageUrl: activity.coverImage, altText: activity.title, id: activity.id }];
 
   const breadcrumbSchema = buildBreadcrumbSchema([
-    { name: "Home", path: "/" },
-    { name: "Activities", path: "/activities" },
-    { name: activity.title, path: `/activities/${activity.slug}` },
+    { name: "Home", path: `/${locale}` },
+    { name: "Activities", path: `/${locale}/activities` },
+    { name: activity.title, path: `/${locale}/activities/${activity.slug}` },
   ]);
 
   const activityStructuredData = buildActivityStructuredData({
@@ -140,6 +143,12 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:h-fit">
+          <WhatsAppContactCard
+            phone={activity.provider.whatsapp}
+            title="Questions about this activity?"
+            message={`Bonjour, je souhaite plus de détails sur ${activity.title}.`}
+            buttonLabel="Ask on WhatsApp"
+          />
           <BookingSection
             activityId={activity.id}
             schedules={bookingSchedules}

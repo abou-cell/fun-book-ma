@@ -9,6 +9,7 @@ import { BookingSummary } from "@/components/booking/BookingSummary";
 import { ParticipantSelector } from "@/components/booking/ParticipantSelector";
 import { TimeSlotList, type TimeSlotItem } from "@/components/booking/TimeSlotList";
 import { buildScheduleIndex, getPreferredSlot } from "@/lib/booking/schedule";
+import { useCurrentLocale, withCurrentLocalePath } from "@/lib/i18n/client";
 
 export type BookingSchedule = TimeSlotItem & {
   date: string;
@@ -30,6 +31,7 @@ export function BookingSection({
   defaultCustomerEmail = "",
 }: BookingSectionProps) {
   const router = useRouter();
+  const locale = useCurrentLocale();
 
   const scheduleIndex = useMemo(() => buildScheduleIndex(schedules), [schedules]);
   const [selectedDate, setSelectedDate] = useState<string | null>(scheduleIndex.dateOrder[0] ?? null);
@@ -135,14 +137,14 @@ export function BookingSection({
         return;
       }
 
-      router.push(`/checkout/${payload.bookingId}`);
+      router.push(withCurrentLocalePath(locale, `/checkout/${payload.bookingId}`));
       router.refresh();
     } catch {
       setError("Booking failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
-  }, [activityId, customerEmail, customerName, customerPhone, notes, participantCount, router, selectedSlot]);
+  }, [activityId, customerEmail, customerName, customerPhone, locale, notes, participantCount, router, selectedSlot]);
 
   return (
     <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

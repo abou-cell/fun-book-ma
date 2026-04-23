@@ -11,7 +11,7 @@ const payloadSchema = z
     intentReference: z.string().trim().min(1).optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.paymentMethod === PaymentMethod.ONLINE_MOCK && !value.intentReference) {
+    if (value.paymentMethod === PaymentMethod.ONLINE_CARD && !value.intentReference) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["intentReference"],
