@@ -15,5 +15,17 @@ export function isSuccessfulPaymentStatus(status: PaymentStatus) {
 }
 
 export function paymentStatusToCheckoutRoute(status: PaymentStatus, bookingId: string) {
-  return isSuccessfulPaymentStatus(status) ? `/checkout/success/${bookingId}` : `/checkout/failed/${bookingId}`;
+  switch (status) {
+    case PaymentStatus.PAID:
+    case PaymentStatus.REFUNDED:
+    case PaymentStatus.PARTIALLY_REFUNDED:
+      return `/checkout/success/${bookingId}`;
+    case PaymentStatus.PENDING:
+    case PaymentStatus.UNPAID:
+      return `/checkout/${bookingId}`;
+    case PaymentStatus.FAILED:
+      return `/checkout/failed/${bookingId}`;
+    default:
+      return `/checkout/${bookingId}`;
+  }
 }

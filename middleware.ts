@@ -19,6 +19,22 @@ import {
 } from "@/lib/i18n/config";
 
 const PUBLIC_FILE = /\.(.*)$/;
+const ONE_YEAR_SECONDS = 31_536_000;
+
+function applySecurityHeaders(response: NextResponse, requestId: string) {
+  response.headers.set("x-request-id", requestId);
+  response.headers.set("x-content-type-options", "nosniff");
+  response.headers.set("x-frame-options", "DENY");
+  response.headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  response.headers.set("permissions-policy", "camera=(), microphone=(), geolocation=()");
+  response.headers.set("x-xss-protection", "0");
+
+  if (env.isProduction) {
+    response.headers.set("strict-transport-security", `max-age=${ONE_YEAR_SECONDS}; includeSubDomains; preload`);
+  }
+
+  return response;
+}
 
 function resolvePreferredLocale(request: Request): (typeof locales)[number] {
   const cookieLocale = request.headers
@@ -45,9 +61,10 @@ function resolvePreferredLocale(request: Request): (typeof locales)[number] {
 
 export default auth((request) => {
   const { pathname } = request.nextUrl;
+  const requestId = crypto.randomUUID();
 
   if (pathname.startsWith("/api/health")) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next(), requestId);
   }
 
   if (env.MAINTENANCE_MODE && !pathname.startsWith("/admin")) {
@@ -56,7 +73,7 @@ export default auth((request) => {
       { status: 503 },
     );
     response.headers.set("x-maintenance-mode", "true");
-    return response;
+    return applySecurityHeaders(response, requestId);
   }
 
   if (
@@ -64,9 +81,7 @@ export default auth((request) => {
     pathname.startsWith("/api") ||
     PUBLIC_FILE.test(pathname)
   ) {
-    const response = NextResponse.next();
-    response.headers.set("x-request-id", crypto.randomUUID());
-    return response;
+    return applySecurityHeaders(NextResponse.next(), requestId);
   }
 
   const localeFromPath = extractLocaleFromPathname(pathname);
@@ -74,7 +89,7 @@ export default auth((request) => {
   if (!localeFromPath) {
     const url = request.nextUrl.clone();
     url.pathname = withLocalePath(pathname, resolvePreferredLocale(request));
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url), requestId);
   }
 
   const locale = localeFromPath;
@@ -82,7 +97,7 @@ export default auth((request) => {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-app-locale", locale);
-  requestHeaders.set("x-request-id", crypto.randomUUID());
+  requestHeaders.set("x-request-id", requestId);
 
   const matchedPolicy = getRoutePolicy(pathnameWithoutLocale);
   if (matchedPolicy) {
@@ -93,14 +108,14 @@ export default auth((request) => {
       loginUrl.searchParams.set("redirectTo", pathname);
       const response = NextResponse.redirect(loginUrl);
       response.cookies.set(localeCookieName, locale, { path: "/" });
-      return response;
+      return applySecurityHeaders(response, requestId);
     }
 
     if (!canAccessRoute(pathnameWithoutLocale, session.user.role)) {
       const fallback = getLandingPageForRole(session.user.role) ?? DEFAULT_AUTHENTICATED_ROUTE;
       const response = NextResponse.redirect(new URL(`/${locale}${fallback}`, request.url));
       response.cookies.set(localeCookieName, locale, { path: "/" });
-      return response;
+      return applySecurityHeaders(response, requestId);
     }
   }
 
@@ -108,7 +123,7 @@ export default auth((request) => {
   rewriteUrl.pathname = pathnameWithoutLocale;
   const response = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
   response.cookies.set(localeCookieName, locale, { path: "/" });
-  return response;
+  return applySecurityHeaders(response, requestId);
 });
 
 export const config = {
