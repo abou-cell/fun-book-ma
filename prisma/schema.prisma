@@ -13,6 +13,21 @@ enum UserRole {
   ADMIN
 }
 
+enum ProviderStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ActivityModerationStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  INACTIVE
+}
+
 enum BookingStatus {
   PENDING
   CONFIRMED
@@ -53,6 +68,14 @@ enum ActivityCategory {
   NATURE
 }
 
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSED
+  FAILED
+}
+
 model User {
   id        String    @id @default(cuid())
   name      String
@@ -66,44 +89,58 @@ model User {
 }
 
 model Provider {
-  id             String     @id @default(cuid())
-  userId         String     @unique
-  businessName   String
-  city           String
-  description    String
-  phone          String?
-  whatsapp       String?
-  commissionRate Decimal    @default(0.10) @db.Decimal(5, 4)
-  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activities     Activity[]
-  payouts        Payout[]
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id                      String         @id @default(cuid())
+  userId                  String         @unique
+  businessName            String
+  city                    String
+  description             String
+  phone                   String?
+  whatsapp                String?
+  status                  ProviderStatus @default(PENDING)
+  reviewedAt              DateTime?
+  reviewedBy              String?
+  rejectionReason         String?
+  moderationNotes         String?
+  commissionRate          Decimal        @default(0.10) @db.Decimal(5, 4)
+  customCommissionEnabled Boolean        @default(false)
+  user                    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities              Activity[]
+  payouts                 Payout[]
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  @@index([status, createdAt])
 }
 
 model Activity {
-  id               String           @id @default(cuid())
+  id               String                   @id @default(cuid())
   providerId       String
   title            String
-  slug             String           @unique
+  slug             String                   @unique
   shortDescription String
   description      String
   city             String
   category         ActivityCategory
-  price            Decimal          @db.Decimal(10, 2)
-  rating           Decimal          @default(0) @db.Decimal(3, 2)
-  reviewCount      Int              @default(0)
+  price            Decimal                  @db.Decimal(10, 2)
+  rating           Decimal                  @default(0) @db.Decimal(3, 2)
+  reviewCount      Int                      @default(0)
   duration         String
   coverImage       String
-  isActive         Boolean          @default(true)
-  provider         Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  isActive         Boolean                  @default(true)
+  status           ActivityModerationStatus @default(DRAFT)
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  rejectionReason  String?
+  moderationNotes  String?
+  provider         Provider                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
   images           ActivityImage[]
   schedules        Schedule[]
   bookings         Booking[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
 
   @@index([city, category])
+  @@index([status, createdAt])
   @@index([isActive, createdAt])
 }
 
@@ -162,6 +199,7 @@ model Booking {
   activity             Activity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
   schedule             Schedule       @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
   payments             Payment[]
+  refunds              Refund[]
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
@@ -200,4 +238,66 @@ model Payout {
   updatedAt   DateTime     @updatedAt
 
   @@index([providerId, periodStart, periodEnd])
+}
+
+model Refund {
+  id          String       @id @default(cuid())
+  bookingId   String
+  amount      Decimal      @db.Decimal(10, 2)
+  status      RefundStatus @default(REQUESTED)
+  reason      String
+  requestedAt DateTime     @default(now())
+  processedAt DateTime?
+  processedBy String?
+  notes       String?
+  booking     Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([status, requestedAt])
+  @@index([bookingId])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model City {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PlatformSetting {
+  id                        Int      @id @default(1)
+  defaultCommissionRate     Decimal  @default(0.10) @db.Decimal(5, 4)
+  supportedCurrencies       String[] @default(["MAD"])
+  cancellationPolicyDefault String   @default("Free cancellation up to 24 hours before activity")
+  emailNotificationsEnabled Boolean  @default(true)
+  paymentOptionsEnabled     Boolean  @default(true)
+  maintenanceModeEnabled    Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model AdminActionLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  action      String
+  entityType  String
+  entityId    String
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId, createdAt])
+  @@index([entityType, entityId])
 }
