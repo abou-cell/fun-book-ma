@@ -8,7 +8,7 @@ import { AppError, handleRouteError } from "@/lib/errors/http";
 import { calculateCheckoutAmounts } from "@/lib/financials/commission";
 import { logger } from "@/lib/observability/logger";
 import { prisma } from "@/lib/prisma";
-import { buildRateLimitKey, checkRateLimit } from "@/lib/security/rate-limit";
+import { enforceRateLimit } from "@/lib/security/http";
 
 const BOOKING_LIMIT = 20;
 const BOOKING_WINDOW_MS = 60 * 1000;
@@ -21,10 +21,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "You must be signed in to book." }, { status: 401 });
   }
 
-  const rateLimit = checkRateLimit(buildRateLimitKey(["booking", userId]), BOOKING_LIMIT, BOOKING_WINDOW_MS);
-  if (!rateLimit.ok) {
-    return NextResponse.json({ error: "Too many booking attempts. Please retry in a moment." }, { status: 429 });
-  }
+  const rateLimitHeaders = enforceRateLimit({
+    namespace: "booking",
+    identifier: userId,
+    limit: BOOKING_LIMIT,
+    windowMs: BOOKING_WINDOW_MS,
+    message: "Too many booking attempts. Please retry in a moment.",
+  });
 
   const parsedBody = bookingRequestSchema.safeParse(await request.json());
 
@@ -139,7 +142,7 @@ export async function POST(request: Request) {
     });
 
     logger.info("Booking created", { bookingId: booking.id, userId });
-    return NextResponse.json({ bookingId: booking.id }, { status: 201 });
+    return NextResponse.json({ bookingId: booking.id }, { status: 201, headers: rateLimitHeaders });
   } catch (error) {
     return handleRouteError(error, {
       route: "/api/bookings",

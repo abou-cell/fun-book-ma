@@ -1,0 +1,27 @@
+name: Deploy Checks
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  migration-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate production migration command
+        run: npm run prisma:migrate:deploy -- --help
