@@ -2,15 +2,19 @@
 
 import { usePathname } from "next/navigation";
 
-import { defaultLocale, isValidLocale } from "@/lib/i18n/config";
+import {
+  defaultLocale,
+  extractLocaleFromPathname,
+  replaceLocaleInPathname,
+  type AppLocale,
+} from "@/lib/i18n/config";
 
 export function useCurrentLocale() {
   const pathname = usePathname();
-  const first = pathname.split("/").filter(Boolean)[0];
-  return first && isValidLocale(first) ? first : defaultLocale;
+  return extractLocaleFromPathname(pathname) ?? defaultLocale;
 }
 
-export function withCurrentLocalePath(locale: string, path: string) {
-  if (path.startsWith("/")) return `/${locale}${path === "/" ? "" : path}`;
-  return `/${locale}/${path}`;
+export function withCurrentLocalePath(locale: AppLocale, path: string) {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return replaceLocaleInPathname(normalized, locale);
 }
