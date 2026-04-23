@@ -38,6 +38,32 @@ function formatValidationErrors(error: z.ZodError) {
   return error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 }
 
+function assertProductionSafety(serverEnv: z.infer<typeof serverEnvSchema>, clientEnv: z.infer<typeof clientEnvSchema>) {
+  const shouldEnforce = serverEnv.NODE_ENV === "production" && process.env.ENFORCE_STRICT_ENV === "true";
+
+  if (!shouldEnforce) {
+    return;
+  }
+
+  const violations: string[] = [];
+
+  if (serverEnv.AUTH_SECRET === "dev-auth-secret-change-me-please-update") {
+    violations.push("AUTH_SECRET cannot use the development default in production");
+  }
+
+  if (serverEnv.DATABASE_URL.includes("localhost") || serverEnv.DATABASE_URL.includes("postgres:postgres")) {
+    violations.push("DATABASE_URL must target a managed/secure production database");
+  }
+
+  if (!clientEnv.NEXT_PUBLIC_APP_URL.startsWith("https://")) {
+    violations.push("NEXT_PUBLIC_APP_URL must use https in production");
+  }
+
+  if (violations.length > 0) {
+    throw new Error(`Unsafe production environment configuration: ${violations.join("; ")}`);
+  }
+}
+
 function getServerEnv() {
   const parsed = serverEnvSchema.safeParse(process.env);
 
@@ -60,6 +86,8 @@ function getClientEnv() {
 
 const serverEnv = getServerEnv();
 const clientEnv = getClientEnv();
+
+assertProductionSafety(serverEnv, clientEnv);
 
 export const env = {
   ...serverEnv,

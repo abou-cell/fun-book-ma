@@ -3,25 +3,24 @@ import { NextResponse } from "next/server";
 
 import { hashPassword } from "@/lib/auth/password";
 import { signupSchema } from "@/lib/auth/validation";
-import { AppError, handleRouteError } from "@/lib/errors/http";
+import { handleRouteError } from "@/lib/errors/http";
 import { logger } from "@/lib/observability/logger";
 import { prisma } from "@/lib/prisma";
-import { buildRateLimitKey, checkRateLimit } from "@/lib/security/rate-limit";
+import { enforceRateLimit, getClientIp } from "@/lib/security/http";
 
 const SIGNUP_LIMIT = 10;
 const SIGNUP_WINDOW_MS = 5 * 60 * 1000;
 
 export async function POST(request: Request) {
   try {
-    const rateLimit = checkRateLimit(
-      buildRateLimitKey(["signup", request.headers.get("x-forwarded-for") ?? "anonymous"]),
-      SIGNUP_LIMIT,
-      SIGNUP_WINDOW_MS,
-    );
-
-    if (!rateLimit.ok) {
-      throw new AppError("Too many sign up attempts. Please try again later.", 429, "RATE_LIMITED");
-    }
+    const clientIp = await getClientIp();
+    const rateLimitHeaders = enforceRateLimit({
+      namespace: "signup",
+      identifier: clientIp,
+      limit: SIGNUP_LIMIT,
+      windowMs: SIGNUP_WINDOW_MS,
+      message: "Too many sign up attempts. Please try again later.",
+    });
 
     const body = await request.json();
     const parsed = signupSchema.safeParse(body);
@@ -68,7 +67,7 @@ export async function POST(request: Request) {
 
     logger.info("New account created", { userId: user.id, role: user.role });
 
-    return NextResponse.json({ user }, { status: 201 });
+    return NextResponse.json({ user }, { status: 201, headers: rateLimitHeaders });
   } catch (error) {
     return handleRouteError(error, {
       route: "/api/auth/signup",

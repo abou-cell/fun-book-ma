@@ -17,7 +17,9 @@
     "test:coverage": "vitest run --coverage",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:seed:dev": "node prisma/seed.mjs"
+    "prisma:seed:dev": "node prisma/seed.mjs",
+    "ci:check": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "test:unit": "vitest run tests/unit"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
