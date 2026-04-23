@@ -38,9 +38,29 @@ export async function Navbar() {
           <LanguageSwitcher />
         </nav>
 
-        <button className="inline-flex items-center rounded-full border border-slate-200 p-2 text-slate-700 md:hidden">
-          <Menu size={18} />
-        </button>
+        <details className="group relative md:hidden">
+          <summary className="inline-flex cursor-pointer list-none items-center rounded-full border border-slate-200 p-2 text-slate-700 marker:content-none">
+            <Menu size={18} />
+          </summary>
+          <nav className="absolute end-0 top-12 z-50 w-56 rounded-2xl border border-slate-200 bg-white p-3 shadow-lg">
+            <div className="mb-3 flex justify-end">
+              <LanguageSwitcher />
+            </div>
+            <div className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+              <Link href={href("/#categories")} className="rounded-xl px-3 py-2 hover:bg-slate-100">{t("nav.categories")}</Link>
+              <Link href={href("/#popular")} className="rounded-xl px-3 py-2 hover:bg-slate-100">{t("nav.popular")}</Link>
+              <Link href={href("/activities")} className="rounded-xl px-3 py-2 hover:bg-slate-100">{t("nav.activities")}</Link>
+              {user ? (
+                <Link href={href("/account")} className="rounded-xl px-3 py-2 hover:bg-slate-100">{t("nav.account")}</Link>
+              ) : (
+                <>
+                  <Link href={href("/login")} className="rounded-xl px-3 py-2 hover:bg-slate-100">{t("nav.signIn")}</Link>
+                  <Link href={href("/signup")} className="rounded-xl px-3 py-2 hover:bg-slate-100">{t("nav.getStarted")}</Link>
+                </>
+              )}
+            </div>
+          </nav>
+        </details>
       </div>
     </header>
   );

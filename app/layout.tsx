@@ -4,7 +4,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { AuthSessionProvider } from "@/components/providers/AuthSessionProvider";
 import { WhatsAppButton } from "@/components/whatsapp/WhatsAppButton";
 import { getRequestLocale } from "@/lib/i18n/server";
-import { isRtlLocale } from "@/lib/i18n/config";
+import { localeMeta } from "@/lib/i18n/config";
 import { buildDefaultMetadata } from "@/lib/seo/metadata";
 import { buildOrganizationSchema, buildWebsiteSchema } from "@/lib/seo/structured-data";
 
@@ -14,9 +14,10 @@ export const metadata: Metadata = buildDefaultMetadata();
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getRequestLocale();
+  const meta = localeMeta[locale];
 
   return (
-    <html lang={locale} dir={isRtlLocale(locale) ? "rtl" : "ltr"} suppressHydrationWarning>
+    <html lang={meta.htmlLang} dir={meta.dir} suppressHydrationWarning>
       <body>
         <JsonLd id="organization-schema" data={buildOrganizationSchema()} />
         <JsonLd id="website-schema" data={buildWebsiteSchema()} />

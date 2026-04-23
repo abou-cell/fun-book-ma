@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
-import { defaultLocale, isValidLocale, locales, stripLocaleFromPathname } from "@/lib/i18n/config";
+import {
+  defaultLocale,
+  extractLocaleFromPathname,
+  isValidLocale,
+  localeCookieName,
+  locales,
+  stripLocaleFromPathname,
+  withLocalePath,
+} from "@/lib/i18n/config";
 import {
   DEFAULT_AUTHENTICATED_ROUTE,
   canAccessRoute,
@@ -11,9 +19,27 @@ import {
 
 const PUBLIC_FILE = /\.(.*)$/;
 
-function withLocale(pathname: string, locale: string) {
-  if (pathname === "/") return `/${locale}`;
-  return `/${locale}${pathname}`;
+function resolvePreferredLocale(request: Request): (typeof locales)[number] {
+  const cookieLocale = request.headers
+    .get("cookie")
+    ?.match(new RegExp(`${localeCookieName}=([^;]+)`))?.[1];
+  if (cookieLocale && isValidLocale(cookieLocale)) return cookieLocale;
+
+  const acceptLanguage = request.headers.get("accept-language");
+  if (!acceptLanguage) return defaultLocale;
+
+  const browserLocales = acceptLanguage
+    .split(",")
+    .map((entry) => entry.split(";")[0]?.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const candidate of browserLocales) {
+    if (candidate === "ar" || candidate.startsWith("ar-")) return "ar";
+    if (candidate === "en" || candidate.startsWith("en-")) return "en";
+    if (candidate === "fr" || candidate.startsWith("fr-")) return "fr";
+  }
+
+  return defaultLocale;
 }
 
 export default auth((request) => {
@@ -27,16 +53,15 @@ export default auth((request) => {
     return NextResponse.next();
   }
 
-  const segments = pathname.split("/").filter(Boolean);
-  const first = segments[0];
+  const localeFromPath = extractLocaleFromPathname(pathname);
 
-  if (!first || !isValidLocale(first)) {
+  if (!localeFromPath) {
     const url = request.nextUrl.clone();
-    url.pathname = withLocale(pathname, defaultLocale);
+    url.pathname = withLocalePath(pathname, resolvePreferredLocale(request));
     return NextResponse.redirect(url);
   }
 
-  const locale = first;
+  const locale = localeFromPath;
   const pathnameWithoutLocale = stripLocaleFromPathname(pathname);
 
   const requestHeaders = new Headers(request.headers);
@@ -50,14 +75,14 @@ export default auth((request) => {
       const loginUrl = new URL(`/${locale}/login`, request.url);
       loginUrl.searchParams.set("redirectTo", pathname);
       const response = NextResponse.redirect(loginUrl);
-      response.cookies.set("NEXT_LOCALE", locale, { path: "/" });
+      response.cookies.set(localeCookieName, locale, { path: "/" });
       return response;
     }
 
     if (!canAccessRoute(pathnameWithoutLocale, session.user.role)) {
       const fallback = getLandingPageForRole(session.user.role) ?? DEFAULT_AUTHENTICATED_ROUTE;
       const response = NextResponse.redirect(new URL(`/${locale}${fallback}`, request.url));
-      response.cookies.set("NEXT_LOCALE", locale, { path: "/" });
+      response.cookies.set(localeCookieName, locale, { path: "/" });
       return response;
     }
   }
@@ -65,7 +90,7 @@ export default auth((request) => {
   const rewriteUrl = request.nextUrl.clone();
   rewriteUrl.pathname = pathnameWithoutLocale;
   const response = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
-  response.cookies.set("NEXT_LOCALE", locale, { path: "/" });
+  response.cookies.set(localeCookieName, locale, { path: "/" });
   return response;
 });
 

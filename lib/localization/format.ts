@@ -1,11 +1,10 @@
-import type { AppLocale } from "@/lib/i18n/config";
+import { localeMeta, type AppLocale } from "@/lib/i18n/config";
 
 export const MOROCCO_CURRENCY = "MAD";
+export const MOROCCO_TIMEZONE = "Africa/Casablanca";
 
 function localeToIntl(locale: AppLocale = "fr") {
-  if (locale === "ar") return "ar-MA";
-  if (locale === "en") return "en-MA";
-  return "fr-MA";
+  return localeMeta[locale].intl;
 }
 
 export function formatCurrency(value: number, locale: AppLocale = "fr", currency = MOROCCO_CURRENCY) {
@@ -13,6 +12,7 @@ export function formatCurrency(value: number, locale: AppLocale = "fr", currency
     style: "currency",
     currency,
     maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
   }).format(value);
 }
 
@@ -20,6 +20,7 @@ export function formatDateByLocale(date: Date | string | number, locale: AppLoca
   return new Intl.DateTimeFormat(localeToIntl(locale), {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: MOROCCO_TIMEZONE,
   }).format(new Date(date));
 }
 
