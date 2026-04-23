@@ -1,5 +1,6 @@
 "use client";
 
+import { UserRole } from "@prisma/client";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -33,7 +34,7 @@ export function AuthForm({ mode }: Props) {
     const name = formData.get("name");
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
-    const role = String(formData.get("role") ?? "CLIENT");
+    const role = String(formData.get("role") ?? "CLIENT") as UserRole;
 
     setIsLoading(true);
     setError(null);

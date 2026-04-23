@@ -19,11 +19,11 @@ const routePolicies: RoutePolicy[] = [
     allowedRoles: [UserRole.CLIENT, UserRole.PROVIDER, UserRole.ADMIN],
   },
   {
-    prefix: "/provider/dashboard",
+    prefix: "/provider",
     allowedRoles: [UserRole.PROVIDER],
   },
   {
-    prefix: "/admin/dashboard",
+    prefix: "/admin",
     allowedRoles: [UserRole.ADMIN],
   },
 ];

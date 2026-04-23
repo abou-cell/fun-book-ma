@@ -157,9 +157,9 @@ function buildActivityWhere(filters: CatalogFilters): Prisma.ActivityWhereInput 
   const searchQuery = filters.q
     ? {
         OR: [
-          { title: { contains: filters.q, mode: "insensitive" } },
-          { shortDescription: { contains: filters.q, mode: "insensitive" } },
-          { description: { contains: filters.q, mode: "insensitive" } },
+          { title: { contains: filters.q, mode: Prisma.QueryMode.insensitive } },
+          { shortDescription: { contains: filters.q, mode: Prisma.QueryMode.insensitive } },
+          { description: { contains: filters.q, mode: Prisma.QueryMode.insensitive } },
         ],
       }
     : {};
@@ -176,7 +176,7 @@ function buildActivityWhere(filters: CatalogFilters): Prisma.ActivityWhereInput 
   return {
     isActive: true,
     ...searchQuery,
-    ...(filters.city ? { city: { equals: filters.city, mode: "insensitive" } } : {}),
+    ...(filters.city ? { city: { equals: filters.city, mode: Prisma.QueryMode.insensitive } } : {}),
     ...(filters.category ? { category: filters.category } : {}),
     ...(filters.duration ? { duration: filters.duration } : {}),
     ...(filters.minRating ? { rating: { gte: filters.minRating } } : {}),

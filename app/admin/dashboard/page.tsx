@@ -1,68 +1,94 @@
-import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
-import { PaymentStatusBadge } from "@/components/payment/PaymentStatusBadge";
+import Link from "next/link";
+
+import { AdminStatCard } from "@/components/admin/AdminStatCard";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
+import { ModerationStatusBadge } from "@/components/admin/ModerationStatusBadge";
+import { ProviderStatusBadge } from "@/components/admin/ProviderStatusBadge";
 import { formatCurrencyMAD } from "@/lib/booking/utils";
-import { requireRole } from "@/lib/auth/guards";
-import { prisma } from "@/lib/prisma";
+
+import { getAdminDashboardData } from "@/lib/admin/service";
 
 export default async function AdminDashboardPage() {
-  const user = await requireRole("ADMIN");
-
-  const bookings = await prisma.booking.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      activity: { select: { title: true, provider: { select: { businessName: true } } } },
-    },
-    take: 40,
-  });
-
-  const summary = bookings.reduce(
-    (acc, booking) => {
-      acc.totalBookings += 1;
-      acc.grossRevenue += Number(booking.totalPrice);
-      acc.totalCommissions += Number(booking.commissionAmount);
-      acc.totalPayout += Number(booking.providerPayoutAmount);
-      return acc;
-    },
-    { totalBookings: 0, grossRevenue: 0, totalCommissions: 0, totalPayout: 0 },
-  );
+  const { metrics, recentBookings, recentProviderSignups, recentPendingActivities } = await getAdminDashboardData();
 
   return (
-    <NavbarPageLayout
-      mainClassName="bg-slate-50"
-      sectionClassName="mx-auto max-w-6xl space-y-6 px-4 pt-10 sm:px-6 lg:px-8"
-    >
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-medium text-brand">Admin dashboard</p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-900">Platform administration</h1>
-        <p className="mt-2 text-slate-600">Signed in as {user.email} with role {user.role}. Review bookings, payment statuses, and commissions.</p>
-      </div>
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Total bookings</p><p className="text-xl font-semibold text-slate-900">{summary.totalBookings}</p></div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Gross revenue</p><p className="text-xl font-semibold text-slate-900">{formatCurrencyMAD(summary.grossRevenue)}</p></div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Commissions collected</p><p className="text-xl font-semibold text-slate-900">{formatCurrencyMAD(summary.totalCommissions)}</p></div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Provider payout overview</p><p className="text-xl font-semibold text-slate-900">{formatCurrencyMAD(summary.totalPayout)}</p></div>
+        <h1 className="mt-1 text-2xl font-semibold text-slate-900">Marketplace back office</h1>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Bookings overview</h2>
-        <div className="mt-4 space-y-3">
-          {bookings.length === 0 && <p className="text-sm text-slate-500">No bookings found.</p>}
-          {bookings.map((booking) => (
-            <div key={booking.id} className="rounded-xl border border-slate-200 p-4 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold text-slate-900">{booking.activity.title}</p>
-                <PaymentStatusBadge status={booking.paymentStatus} />
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <AdminStatCard label="Total users" value={metrics.users} />
+        <AdminStatCard label="Total providers" value={metrics.providers} />
+        <AdminStatCard label="Pending provider validations" value={metrics.pendingProviders} />
+        <AdminStatCard label="Total activities" value={metrics.activities} />
+        <AdminStatCard label="Pending activity validations" value={metrics.pendingActivities} />
+        <AdminStatCard label="Total bookings" value={metrics.totalBookings} />
+        <AdminStatCard label="Total gross revenue" value={formatCurrencyMAD(metrics.grossRevenue)} />
+        <AdminStatCard label="Commissions collected" value={formatCurrencyMAD(metrics.totalCommissions)} />
+        <AdminStatCard label="Estimated provider payouts" value={formatCurrencyMAD(metrics.estimatedProviderPayouts)} />
+        <AdminStatCard label="Total refunds" value={formatCurrencyMAD(metrics.totalRefunds)} />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-900">Recent bookings</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            {recentBookings.map((item) => (
+              <div key={item.id} className="rounded-lg border border-slate-100 p-3">
+                <p className="font-medium text-slate-900">{item.activity.title}</p>
+                <p className="text-slate-500">{item.customerEmail}</p>
               </div>
-              <p className="text-slate-600">Provider: {booking.activity.provider.businessName}</p>
-              <p className="text-slate-600">Customer: {booking.customerEmail}</p>
-              <p className="text-slate-600">Gross: {formatCurrencyMAD(Number(booking.totalPrice))}</p>
-              <p className="text-slate-600">Commission: {formatCurrencyMAD(Number(booking.commissionAmount))}</p>
-              <p className="text-slate-600">Payout: {formatCurrencyMAD(Number(booking.providerPayoutAmount))}</p>
-            </div>
+            ))}
+            {recentBookings.length === 0 ? <AdminEmptyState title="No bookings" description="Recent bookings appear here." /> : null}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-900">Recent provider signups</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            {recentProviderSignups.map((item) => (
+              <div key={item.id} className="rounded-lg border border-slate-100 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-slate-900">{item.businessName}</p>
+                  <ProviderStatusBadge status={item.status} />
+                </div>
+                <p className="text-slate-500">{item.user.email}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-900">Recent pending activities</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            {recentPendingActivities.map((item) => (
+              <div key={item.id} className="rounded-lg border border-slate-100 p-3">
+                <p className="font-medium text-slate-900">{item.title}</p>
+                <p className="text-slate-500">{item.provider.businessName}</p>
+                <ModerationStatusBadge status={item.status} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-slate-900">Quick actions</h2>
+        <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          {[
+            ["Review providers", "/admin/providers"],
+            ["Moderate activities", "/admin/activities"],
+            ["Monitor bookings", "/admin/bookings"],
+            ["Manage refunds", "/admin/refunds"],
+          ].map(([label, href]) => (
+            <Link key={href} href={href} className="rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-50">
+              {label}
+            </Link>
           ))}
         </div>
       </section>
-    </NavbarPageLayout>
+    </div>
   );
 }
