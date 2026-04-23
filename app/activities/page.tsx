@@ -1,5 +1,3 @@
-import type { Metadata } from "next";
-
 import { ActivityCard } from "@/components/ActivityCard";
 import { EmptyState } from "@/components/activities/EmptyState";
 import { FilterSidebar } from "@/components/activities/FilterSidebar";
@@ -13,10 +11,18 @@ import {
   parseCatalogFilters,
 } from "@/features/activities/catalog";
 
-export const metadata: Metadata = {
-  title: "Activities in Morocco | FunBook Marketplace",
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildPageMetadata } from "@/lib/seo/metadata";
+import { buildBreadcrumbSchema } from "@/lib/seo/structured-data";
+
+export const revalidate = 300;
+
+export const metadata = buildPageMetadata({
+  title: "Activities in Morocco",
   description: "Browse and book top-rated activities across Morocco with smart filters and sorting.",
-};
+  path: "/activities",
+  keywords: ["activities in Morocco", "Morocco tours", "book activities"],
+});
 
 type ActivitiesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -28,8 +34,14 @@ export default async function ActivitiesPage({ searchParams }: ActivitiesPagePro
 
   const [activities, filterData] = await Promise.all([getActivities(filters), getCatalogFilterData()]);
 
+  const breadcrumbSchema = buildBreadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Activities", path: "/activities" },
+  ]);
+
   return (
     <NavbarPageLayout sectionClassName="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+      <JsonLd id="activities-breadcrumb-schema" data={breadcrumbSchema} />
       <SectionHeader title="Explore activities" subtitle="Discover unforgettable experiences across Morocco." />
 
       <form method="GET" className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">

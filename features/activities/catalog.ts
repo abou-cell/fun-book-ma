@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ActivityCategory, Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 
@@ -103,13 +104,13 @@ const getCachedCatalogFilterData = unstable_cache(
   async () => {
     const [cities, durations] = await Promise.all([
       prisma.activity.findMany({
-        where: { isActive: true },
+        where: { isActive: true, status: "APPROVED" },
         distinct: ["city"],
         select: { city: true },
         orderBy: { city: "asc" },
       }),
       prisma.activity.findMany({
-        where: { isActive: true },
+        where: { isActive: true, status: "APPROVED" },
         distinct: ["duration"],
         select: { duration: true },
         orderBy: { duration: "asc" },
@@ -130,7 +131,11 @@ export async function getCatalogFilterData() {
   return getCachedCatalogFilterData();
 }
 
-export async function getActivities(filters: CatalogFilters) {
+function getCatalogCacheKey(filters: CatalogFilters) {
+  return createHash("sha1").update(JSON.stringify(filters)).digest("hex");
+}
+
+async function fetchActivities(filters: CatalogFilters) {
   const where = buildActivityWhere(filters);
   const orderBy = getActivityOrderBy(filters.sort);
 
@@ -151,6 +156,12 @@ export async function getActivities(filters: CatalogFilters) {
       shortDescription: true,
     },
   });
+}
+
+export async function getActivities(filters: CatalogFilters) {
+  const cacheKey = getCatalogCacheKey(filters);
+  const getCachedActivities = unstable_cache(async () => fetchActivities(filters), ["catalog-activities", cacheKey], { revalidate: 300 });
+  return getCachedActivities();
 }
 
 function buildActivityWhere(filters: CatalogFilters): Prisma.ActivityWhereInput {
@@ -175,6 +186,7 @@ function buildActivityWhere(filters: CatalogFilters): Prisma.ActivityWhereInput 
 
   return {
     isActive: true,
+    status: "APPROVED",
     ...searchQuery,
     ...(filters.city ? { city: { equals: filters.city, mode: Prisma.QueryMode.insensitive } } : {}),
     ...(filters.category ? { category: filters.category } : {}),
@@ -204,9 +216,9 @@ function getActivityOrderBy(sort: SortOption): Prisma.ActivityOrderByWithRelatio
   return [{ reviewCount: "desc" }, { rating: "desc" }];
 }
 
-export async function getActivityBySlug(slug: string) {
+async function fetchActivityBySlug(slug: string) {
   return prisma.activity.findFirst({
-    where: { slug, isActive: true },
+    where: { slug, isActive: true, status: "APPROVED" },
     include: {
       provider: {
         select: {
@@ -219,4 +231,9 @@ export async function getActivityBySlug(slug: string) {
       },
     },
   });
+}
+
+export async function getActivityBySlug(slug: string) {
+  const getCachedActivityBySlug = unstable_cache(async () => fetchActivityBySlug(slug), ["activity-slug", slug], { revalidate: 300 });
+  return getCachedActivityBySlug();
 }

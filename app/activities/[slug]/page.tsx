@@ -5,9 +5,15 @@ import { notFound } from "next/navigation";
 import { BookingSection } from "@/components/booking/BookingSection";
 import { SectionHeader } from "@/components/SectionHeader";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { activityCategoryLabels, getActivityBySlug } from "@/features/activities/catalog";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { prisma } from "@/lib/prisma";
+import { validateReviewOwnership } from "@/lib/reviews/validation";
+import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo/metadata";
+import { buildActivityStructuredData, buildBreadcrumbSchema } from "@/lib/seo/structured-data";
+
+export const revalidate = 300;
 
 type ActivityDetailsPageProps = {
   params: Promise<{ slug: string }>;
@@ -18,16 +24,21 @@ export async function generateMetadata({ params }: ActivityDetailsPageProps): Pr
   const activity = await getActivityBySlug(slug);
 
   if (!activity) {
-    return {
-      title: "Activity not found | FunBook",
+    return buildPageMetadata({
+      title: "Activity not found",
       description: "The requested activity could not be found.",
-    };
+      path: `/activities/${slug}`,
+      noIndex: true,
+    });
   }
 
-  return {
-    title: `${activity.title} | FunBook Morocco`,
+  return buildPageMetadata({
+    title: activity.title,
     description: activity.shortDescription,
-  };
+    path: `/activities/${activity.slug}`,
+    keywords: [activity.city, activityCategoryLabels[activity.category], "book activity", "Morocco experiences"],
+    images: [{ url: activity.coverImage, alt: activity.title }],
+  });
 }
 
 export default async function ActivityDetailsPage({ params }: ActivityDetailsPageProps) {
@@ -38,22 +49,30 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
     notFound();
   }
 
-  const schedules = await prisma.schedule.findMany({
-    where: {
-      activityId: activity.id,
-      isActive: true,
-      startTime: { gte: new Date() },
-    },
-    orderBy: [{ date: "asc" }, { startTime: "asc" }],
-    select: {
-      id: true,
-      date: true,
-      startTime: true,
-      endTime: true,
-      availableSpots: true,
-      price: true,
-    },
-  });
+  const [schedules, reviewOwnership] = await Promise.all([
+    prisma.schedule.findMany({
+      where: {
+        activityId: activity.id,
+        isActive: true,
+        startTime: { gte: new Date() },
+      },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        availableSpots: true,
+        price: true,
+      },
+    }),
+    currentUser
+      ? validateReviewOwnership({
+          userId: currentUser.id,
+          activityId: activity.id,
+        })
+      : Promise.resolve({ canReview: false, bookingId: undefined }),
+  ]);
 
   const bookingSchedules = schedules.map((schedule) => ({
     id: schedule.id,
@@ -66,9 +85,32 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
 
   const gallery = activity.images.length > 0 ? activity.images : [{ imageUrl: activity.coverImage, altText: activity.title, id: activity.id }];
 
+  const breadcrumbSchema = buildBreadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Activities", path: "/activities" },
+    { name: activity.title, path: `/activities/${activity.slug}` },
+  ]);
+
+  const activityStructuredData = buildActivityStructuredData({
+    title: activity.title,
+    description: activity.shortDescription,
+    slug: activity.slug,
+    imageUrls: gallery.map((image) => toAbsoluteUrl(image.imageUrl)),
+    city: activity.city,
+    duration: activity.duration,
+    price: Number(activity.price),
+    providerName: activity.provider.businessName,
+    rating: Number(activity.rating),
+    reviewCount: activity.reviewCount,
+  });
+
   return (
     <NavbarPageLayout sectionClassName="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+      <JsonLd id="activity-breadcrumb-schema" data={breadcrumbSchema} />
+      <JsonLd id="activity-schema" data={activityStructuredData} />
+
       <SectionHeader title={activity.title} subtitle={activity.shortDescription} />
+      <p className="sr-only">{reviewOwnership.canReview ? "Verified booking owner can submit a review." : "Review submission requires a confirmed paid booking."}</p>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
@@ -81,6 +123,7 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
                   fill
                   className="object-cover"
                   sizes="(max-width: 640px) 100vw, 50vw"
+                  priority={index === 0}
                 />
               </div>
             ))}
