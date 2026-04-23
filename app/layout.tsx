@@ -2,47 +2,12 @@ import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/seo/JsonLd";
 import { AuthSessionProvider } from "@/components/providers/AuthSessionProvider";
-import { buildOrganizationSchema } from "@/lib/seo/structured-data";
-import { getSiteUrl, siteConfig } from "@/lib/seo/metadata";
+import { buildDefaultMetadata } from "@/lib/seo/metadata";
+import { buildOrganizationSchema, buildWebsiteSchema } from "@/lib/seo/structured-data";
 
 import "./globals.css";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(getSiteUrl()),
-  title: {
-    default: "FunBook Morocco | Activity Marketplace",
-    template: "%s | FunBook Morocco",
-  },
-  description: siteConfig.description,
-  applicationName: siteConfig.shortName,
-  alternates: {
-    canonical: "/",
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-      "max-video-preview": -1,
-    },
-  },
-  openGraph: {
-    type: "website",
-    locale: siteConfig.locale,
-    title: "FunBook Morocco | Activity Marketplace",
-    description: siteConfig.description,
-    siteName: siteConfig.name,
-    url: "/",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "FunBook Morocco | Activity Marketplace",
-    description: siteConfig.description,
-  },
-};
+export const metadata: Metadata = buildDefaultMetadata();
 
 export default function RootLayout({
   children,
@@ -53,6 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <JsonLd id="organization-schema" data={buildOrganizationSchema()} />
+        <JsonLd id="website-schema" data={buildWebsiteSchema()} />
         <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>

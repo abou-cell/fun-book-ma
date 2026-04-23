@@ -237,3 +237,29 @@ export async function getActivityBySlug(slug: string) {
   const getCachedActivityBySlug = unstable_cache(async () => fetchActivityBySlug(slug), ["activity-slug", slug], { revalidate: 300 });
   return getCachedActivityBySlug();
 }
+
+async function fetchPublicSchedulesForActivity(activityId: string) {
+  return prisma.schedule.findMany({
+    where: {
+      activityId,
+      isActive: true,
+      startTime: { gte: new Date() },
+    },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    select: {
+      id: true,
+      date: true,
+      startTime: true,
+      endTime: true,
+      availableSpots: true,
+      price: true,
+    },
+  });
+}
+
+export async function getPublicSchedulesForActivity(activityId: string) {
+  const getCachedSchedules = unstable_cache(async () => fetchPublicSchedulesForActivity(activityId), ["activity-schedules", activityId], {
+    revalidate: 120,
+  });
+  return getCachedSchedules();
+}

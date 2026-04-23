@@ -13,7 +13,7 @@ import {
 
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildPageMetadata } from "@/lib/seo/metadata";
-import { buildBreadcrumbSchema } from "@/lib/seo/structured-data";
+import { buildActivitiesItemListSchema, buildBreadcrumbSchema } from "@/lib/seo/structured-data";
 
 export const revalidate = 300;
 
@@ -38,10 +38,19 @@ export default async function ActivitiesPage({ searchParams }: ActivitiesPagePro
     { name: "Home", path: "/" },
     { name: "Activities", path: "/activities" },
   ]);
+  const activitiesListSchema = buildActivitiesItemListSchema(
+    activities.slice(0, 24).map((activity) => ({
+      title: activity.title,
+      slug: activity.slug,
+      image: activity.coverImage,
+      price: Number(activity.price),
+    })),
+  );
 
   return (
     <NavbarPageLayout sectionClassName="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <JsonLd id="activities-breadcrumb-schema" data={breadcrumbSchema} />
+      <JsonLd id="activities-itemlist-schema" data={activitiesListSchema} />
       <SectionHeader title="Explore activities" subtitle="Discover unforgettable experiences across Morocco." />
 
       <form method="GET" className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">

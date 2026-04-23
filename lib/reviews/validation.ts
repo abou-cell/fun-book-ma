@@ -29,23 +29,50 @@ type ReviewOwnershipValidationInput = {
   activityId: string;
 };
 
-export async function validateReviewOwnership({ userId, activityId }: ReviewOwnershipValidationInput) {
-  const eligibleBooking = await prisma.booking.findFirst({
+export type ReviewOwnershipValidationResult = {
+  canReview: boolean;
+  bookingId?: string;
+  ownership: "verified_owner" | "no_paid_booking" | "no_confirmed_booking";
+};
+
+export async function validateReviewOwnership({ userId, activityId }: ReviewOwnershipValidationInput): Promise<ReviewOwnershipValidationResult> {
+  const candidateBookings = await prisma.booking.findMany({
     where: {
       userId,
       activityId,
       status: BookingStatus.CONFIRMED,
-      paymentStatus: {
-        in: [PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED],
-      },
     },
     select: {
       id: true,
+      paymentStatus: true,
     },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 10,
   });
 
+  if (candidateBookings.length === 0) {
+    return {
+      canReview: false,
+      ownership: "no_confirmed_booking",
+    };
+  }
+
+  const eligibleBooking = candidateBookings.find((booking) =>
+    [PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED].includes(booking.paymentStatus),
+  );
+
+  if (!eligibleBooking) {
+    return {
+      canReview: false,
+      ownership: "no_paid_booking",
+    };
+  }
+
   return {
-    canReview: Boolean(eligibleBooking),
-    bookingId: eligibleBooking?.id,
+    canReview: true,
+    bookingId: eligibleBooking.id,
+    ownership: "verified_owner",
   };
 }

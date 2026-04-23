@@ -1,36 +1,41 @@
 import { siteConfig, toAbsoluteUrl } from "@/lib/seo/metadata";
 import { getTrustedAggregateRating } from "@/lib/reviews/validation";
 
-type OrganizationSchema = {
+type SchemaBase = {
   "@context": "https://schema.org";
-  "@type": "Organization";
-  name: string;
-  url: string;
-  logo: string;
 };
 
-export function buildOrganizationSchema(): OrganizationSchema {
+type BreadcrumbItem = {
+  name: string;
+  path: string;
+};
+
+export function buildOrganizationSchema() {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: siteConfig.name,
     url: toAbsoluteUrl("/"),
     logo: toAbsoluteUrl("/logo.png"),
-  };
+  } as const satisfies SchemaBase;
 }
 
-type BreadcrumbListSchema = {
-  "@context": "https://schema.org";
-  "@type": "BreadcrumbList";
-  itemListElement: Array<{
-    "@type": "ListItem";
-    position: number;
-    name: string;
-    item: string;
-  }>;
-};
+export function buildWebsiteSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: siteConfig.name,
+    url: toAbsoluteUrl("/"),
+    inLanguage: siteConfig.defaultLanguage,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${toAbsoluteUrl("/activities")}?q={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
+  } as const satisfies SchemaBase;
+}
 
-export function buildBreadcrumbSchema(items: Array<{ name: string; path: string }>): BreadcrumbListSchema {
+export function buildBreadcrumbSchema(items: BreadcrumbItem[]) {
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -40,7 +45,7 @@ export function buildBreadcrumbSchema(items: Array<{ name: string; path: string 
       name: item.name,
       item: toAbsoluteUrl(item.path),
     })),
-  };
+  } as const satisfies SchemaBase;
 }
 
 type ActivitySchemaInput = {
@@ -104,5 +109,34 @@ export function buildActivityStructuredData(input: ActivitySchemaInput) {
         value: input.duration,
       },
     ],
-  };
+  } as const satisfies SchemaBase;
+}
+
+type ActivityListItem = {
+  title: string;
+  slug: string;
+  image: string;
+  price: number;
+};
+
+export function buildActivitiesItemListSchema(items: ActivityListItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: toAbsoluteUrl(`/activities/${item.slug}`),
+      item: {
+        "@type": "Product",
+        name: item.title,
+        image: toAbsoluteUrl(item.image),
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "MAD",
+          price: item.price,
+        },
+      },
+    })),
+  } as const satisfies SchemaBase;
 }

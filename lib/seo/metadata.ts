@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 
 const FALLBACK_SITE_URL = "https://funbook.ma";
+const DEFAULT_OG_IMAGE = "/og-default.jpg";
 
 export const siteConfig = {
   name: "FunBook Morocco",
   shortName: "FunBook",
   description: "Book unforgettable activities across Morocco.",
   locale: "en_US",
+  defaultLanguage: "en",
+  supportedLanguages: ["en"] as const,
 } as const;
 
 function normalizeSiteUrl(url: string) {
@@ -33,11 +36,34 @@ type BuildMetadataInput = {
   keywords?: string[];
   noIndex?: boolean;
   images?: { url: string; alt: string }[];
+  type?: "website" | "article";
 };
 
-export function buildPageMetadata({ title, description, path = "/", keywords, noIndex, images }: BuildMetadataInput): Metadata {
+function buildRobots(noIndex = false): Metadata["robots"] {
+  return {
+    index: !noIndex,
+    follow: !noIndex,
+    googleBot: {
+      index: !noIndex,
+      follow: !noIndex,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  };
+}
+
+export function buildPageMetadata({
+  title,
+  description,
+  path = "/",
+  keywords,
+  noIndex,
+  images,
+  type = "website",
+}: BuildMetadataInput): Metadata {
   const canonical = toAbsoluteUrl(path);
-  const socialImages = images?.length ? images : [{ url: toAbsoluteUrl("/og-default.jpg"), alt: `${title} | ${siteConfig.name}` }];
+  const socialImages = images?.length ? images : [{ url: toAbsoluteUrl(DEFAULT_OG_IMAGE), alt: `${title} | ${siteConfig.name}` }];
 
   return {
     title,
@@ -45,20 +71,11 @@ export function buildPageMetadata({ title, description, path = "/", keywords, no
     keywords,
     alternates: {
       canonical,
+      languages: Object.fromEntries(siteConfig.supportedLanguages.map((language) => [language, canonical])),
     },
-    robots: {
-      index: !noIndex,
-      follow: !noIndex,
-      googleBot: {
-        index: !noIndex,
-        follow: !noIndex,
-        "max-image-preview": "large",
-        "max-snippet": -1,
-        "max-video-preview": -1,
-      },
-    },
+    robots: buildRobots(noIndex),
     openGraph: {
-      type: "website",
+      type,
       locale: siteConfig.locale,
       title,
       description,
@@ -71,6 +88,39 @@ export function buildPageMetadata({ title, description, path = "/", keywords, no
       title,
       description,
       images: socialImages.map((image) => image.url),
+    },
+    category: "travel",
+  };
+}
+
+export function buildDefaultMetadata(): Metadata {
+  return {
+    metadataBase: new URL(getSiteUrl()),
+    title: {
+      default: "FunBook Morocco | Activity Marketplace",
+      template: `%s | ${siteConfig.name}`,
+    },
+    description: siteConfig.description,
+    applicationName: siteConfig.shortName,
+    alternates: {
+      canonical: "/",
+      languages: Object.fromEntries(siteConfig.supportedLanguages.map((language) => [language, "/"])),
+    },
+    robots: buildRobots(),
+    openGraph: {
+      type: "website",
+      locale: siteConfig.locale,
+      title: "FunBook Morocco | Activity Marketplace",
+      description: siteConfig.description,
+      siteName: siteConfig.name,
+      url: "/",
+      images: [{ url: DEFAULT_OG_IMAGE, alt: siteConfig.name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "FunBook Morocco | Activity Marketplace",
+      description: siteConfig.description,
+      images: [DEFAULT_OG_IMAGE],
     },
   };
 }
