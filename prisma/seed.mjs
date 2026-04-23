@@ -3,6 +3,10 @@ import { ActivityCategory, PrismaClient, UserRole } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+if (process.env.NODE_ENV === "production") {
+  throw new Error("Seed is disabled in production.");
+}
+
 async function upsertUser({ email, name, role, password }) {
   const hashedPassword = await bcrypt.hash(password, 12);
 

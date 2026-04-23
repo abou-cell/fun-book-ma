@@ -1,5 +1,7 @@
 import { PaymentProvider, PaymentStatus } from "@prisma/client";
 
+import { env } from "@/lib/env";
+
 import type { ConfirmPaymentInput, ConfirmPaymentResult, PaymentGateway, PaymentIntentInput, PaymentIntentResult } from "@/lib/payments/types";
 
 function buildReference(prefix: string) {
@@ -7,7 +9,7 @@ function buildReference(prefix: string) {
 }
 
 function resolveMockSuccessRate() {
-  const configured = Number(process.env.MOCK_PAYMENT_SUCCESS_RATE ?? "0.85");
+  const configured = Number(env.MOCK_PAYMENT_SUCCESS_RATE ?? "0.85");
   if (Number.isNaN(configured) || configured < 0 || configured > 1) {
     return 0.85;
   }

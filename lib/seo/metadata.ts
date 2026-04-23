@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { env } from "@/lib/env";
+
 import { defaultLocale, locales } from "@/lib/i18n/config";
 
 const FALLBACK_SITE_URL = "https://funbook.ma";
@@ -23,7 +25,7 @@ function normalizeSiteUrl(url: string) {
 }
 
 export function getSiteUrl() {
-  return normalizeSiteUrl(process.env.NEXT_PUBLIC_APP_URL ?? FALLBACK_SITE_URL);
+  return normalizeSiteUrl(env.NEXT_PUBLIC_APP_URL ?? FALLBACK_SITE_URL);
 }
 
 export function toAbsoluteUrl(path: string) {

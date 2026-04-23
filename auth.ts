@@ -3,15 +3,16 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { verifyPassword } from "@/lib/auth/password";
+import { env } from "@/lib/env";
+import { logger } from "@/lib/observability/logger";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/auth/validation";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
   trustHost: true,
-  secret:
-    process.env.AUTH_SECRET ??
-    (process.env.NODE_ENV === "production" ? undefined : "dev-auth-secret-change-me"),
+  secret: env.AUTH_SECRET,
+  debug: env.isDevelopment,
   pages: {
     signIn: "/login",
   },
@@ -26,6 +27,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = loginSchema.safeParse(credentials);
 
         if (!parsed.success) {
+          logger.warn("Invalid login payload", { reason: "schema_validation" });
           return null;
         }
 
@@ -33,12 +35,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await prisma.user.findUnique({ where: { email } });
 
         if (!user) {
+          logger.info("Login failed", { reason: "user_not_found" });
           return null;
         }
 
         const isValid = await verifyPassword(password, user.password);
 
         if (!isValid) {
+          logger.info("Login failed", { reason: "invalid_password", userId: user.id });
           return null;
         }
 

@@ -3,10 +3,26 @@ import { NextResponse } from "next/server";
 
 import { hashPassword } from "@/lib/auth/password";
 import { signupSchema } from "@/lib/auth/validation";
+import { AppError, handleRouteError } from "@/lib/errors/http";
+import { logger } from "@/lib/observability/logger";
 import { prisma } from "@/lib/prisma";
+import { buildRateLimitKey, checkRateLimit } from "@/lib/security/rate-limit";
+
+const SIGNUP_LIMIT = 10;
+const SIGNUP_WINDOW_MS = 5 * 60 * 1000;
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = checkRateLimit(
+      buildRateLimitKey(["signup", request.headers.get("x-forwarded-for") ?? "anonymous"]),
+      SIGNUP_LIMIT,
+      SIGNUP_WINDOW_MS,
+    );
+
+    if (!rateLimit.ok) {
+      throw new AppError("Too many sign up attempts. Please try again later.", 429, "RATE_LIMITED");
+    }
+
     const body = await request.json();
     const parsed = signupSchema.safeParse(body);
 
@@ -50,8 +66,13 @@ export async function POST(request: Request) {
       });
     }
 
+    logger.info("New account created", { userId: user.id, role: user.role });
+
     return NextResponse.json({ user }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Unable to create account" }, { status: 500 });
+  } catch (error) {
+    return handleRouteError(error, {
+      route: "/api/auth/signup",
+      fallbackMessage: "Unable to create account",
+    });
   }
 }

@@ -59,9 +59,13 @@ export async function validateReviewOwnership({ userId, activityId }: ReviewOwne
     };
   }
 
-  const eligibleBooking = candidateBookings.find((booking) =>
-    [PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED].includes(booking.paymentStatus),
-  );
+  const eligibleStatuses: PaymentStatus[] = [
+    PaymentStatus.PAID,
+    PaymentStatus.PARTIALLY_REFUNDED,
+    PaymentStatus.REFUNDED,
+  ];
+
+  const eligibleBooking = candidateBookings.find((booking) => eligibleStatuses.includes(booking.paymentStatus));
 
   if (!eligibleBooking) {
     return {

@@ -3,6 +3,8 @@ import { getTrustedAggregateRating } from "@/lib/reviews/validation";
 
 type SchemaBase = {
   "@context": "https://schema.org";
+  "@type": string;
+  [key: string]: unknown;
 };
 
 type BreadcrumbItem = {
