@@ -13,7 +13,7 @@ export const bookingRequestSchema = z.object({
   activityId: z.string().trim().min(1, "Missing activity selection."),
   scheduleId: z.string().trim().min(1, "Missing schedule selection."),
   participants: z
-    .number({ coerce: true })
+    .coerce.number()
     .int("Invalid participant count.")
     .min(1, "At least 1 participant is required.")
     .max(20, "Maximum 20 participants are allowed per booking."),

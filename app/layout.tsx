@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/seo/JsonLd";
+import { env } from "@/lib/env";
 import { AuthSessionProvider } from "@/components/providers/AuthSessionProvider";
 import { WhatsAppButton } from "@/components/whatsapp/WhatsAppButton";
 import { getRequestLocale } from "@/lib/i18n/server";
@@ -11,6 +12,7 @@ import { buildOrganizationSchema, buildWebsiteSchema } from "@/lib/seo/structure
 import "./globals.css";
 
 export const metadata: Metadata = buildDefaultMetadata();
+export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getRequestLocale();
@@ -23,7 +25,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <JsonLd id="website-schema" data={buildWebsiteSchema()} />
         <AuthSessionProvider>{children}</AuthSessionProvider>
         <WhatsAppButton
-          phone={process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP}
+          phone={env.NEXT_PUBLIC_SUPPORT_WHATSAPP}
           message="Bonjour, j'ai besoin d'aide avec ma réservation FunBook Maroc."
           label="WhatsApp"
           floating

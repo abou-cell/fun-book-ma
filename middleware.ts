@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import {
+  DEFAULT_AUTHENTICATED_ROUTE,
+  canAccessRoute,
+  getLandingPageForRole,
+  getRoutePolicy,
+} from "@/lib/auth/rbac";
+import { env } from "@/lib/env";
+import {
   defaultLocale,
   extractLocaleFromPathname,
   isValidLocale,
@@ -10,12 +17,6 @@ import {
   stripLocaleFromPathname,
   withLocalePath,
 } from "@/lib/i18n/config";
-import {
-  DEFAULT_AUTHENTICATED_ROUTE,
-  canAccessRoute,
-  getLandingPageForRole,
-  getRoutePolicy,
-} from "@/lib/auth/rbac";
 
 const PUBLIC_FILE = /\.(.*)$/;
 
@@ -45,12 +46,27 @@ function resolvePreferredLocale(request: Request): (typeof locales)[number] {
 export default auth((request) => {
   const { pathname } = request.nextUrl;
 
+  if (pathname.startsWith("/api/health")) {
+    return NextResponse.next();
+  }
+
+  if (env.MAINTENANCE_MODE && !pathname.startsWith("/admin")) {
+    const response = NextResponse.json(
+      { error: "Maintenance mode enabled. Please retry shortly." },
+      { status: 503 },
+    );
+    response.headers.set("x-maintenance-mode", "true");
+    return response;
+  }
+
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     PUBLIC_FILE.test(pathname)
   ) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set("x-request-id", crypto.randomUUID());
+    return response;
   }
 
   const localeFromPath = extractLocaleFromPathname(pathname);
@@ -66,6 +82,7 @@ export default auth((request) => {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-app-locale", locale);
+  requestHeaders.set("x-request-id", crypto.randomUUID());
 
   const matchedPolicy = getRoutePolicy(pathnameWithoutLocale);
   if (matchedPolicy) {

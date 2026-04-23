@@ -1,122 +1,103 @@
-# FunBook Morocco - MVP Step 1
+# FunBook Morocco (Production-Ready Baseline)
 
-Next.js App Router + TypeScript + Tailwind CSS + Prisma + PostgreSQL starter for an activities marketplace in Morocco.
+Marketplace starter built with Next.js App Router, TypeScript, Prisma, and PostgreSQL.
 
 ## Stack
 
 - Next.js 16 (App Router)
 - TypeScript
-- Tailwind CSS
 - Prisma ORM
 - PostgreSQL
+- NextAuth (credentials)
+- Vitest + Testing Library
 
-## Quick start
-
-1. Install dependencies:
+## 1) Local setup
 
 ```bash
 npm install
-```
-
-2. Configure environment:
-
-```bash
 cp .env.example .env
-```
-
-3. Generate Prisma client:
-
-```bash
 npm run prisma:generate
-```
-
-4. Start dev server:
-
-```bash
+npm run prisma:migrate:deploy
 npm run dev
 ```
 
-## Project structure
+App runs on `http://localhost:3000`.
 
-```txt
-app/
-  layout.tsx
-  page.tsx
-  globals.css
-components/
-  Navbar.tsx
-  SearchBar.tsx
-  ActivityCard.tsx
-  SectionHeader.tsx
-features/
-  home/
-    components/
-      HeroSection.tsx
-      CategoriesSection.tsx
-      PopularActivitiesSection.tsx
-    data.ts
-lib/
-  prisma.ts
-  utils.ts
-prisma/
-  schema.prisma
+## 2) Environment configuration
+
+Copy `.env.example` to `.env` and configure:
+
+- Database: `DATABASE_URL`
+- Auth: `AUTH_SECRET`
+- Email placeholders: `EMAIL_PROVIDER`, SMTP values
+- Storage placeholders: `STORAGE_*`
+- Payment placeholders: `PAYMENT_*`, `MOCK_PAYMENT_SUCCESS_RATE`
+- Monitoring/ops: `MONITORING_DSN`, `APP_LOG_LEVEL`, `MAINTENANCE_MODE`
+- Public values: `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPPORT_WHATSAPP`
+
+Environment values are validated in `lib/env.ts` at runtime.
+
+## 3) Security and operational baseline
+
+Implemented:
+
+- Centralized environment validation
+- Security headers configured in `next.config.ts`
+- Rate-limit-ready helper for auth and booking endpoints
+- Structured logging with redaction in `lib/observability/logger.ts`
+- Monitoring hooks/placeholders in `lib/observability/monitoring.ts`
+- Global app error boundary and not-found page
+- Health check endpoint: `GET /api/health`
+- Secure upload checks for file type and size
+- Provider/admin route protection kept server-side via middleware and role policies
+
+## 4) Testing
+
+```bash
+npm run test
+npm run test:coverage
 ```
 
-## Best practices
+Included tests cover:
 
-### App Router and component design
+- auth password utils
+- role protection helpers
+- commission calculations
+- booking validation
+- payment status logic
+- localization utilities
+- health-route integration readiness
 
-- Keep route-level concerns in `app/` and reusable UI in `components/` or `features/*/components`.
-- Default to Server Components; add `"use client"` only when you need browser APIs, local state, or event handlers.
-- Keep components focused and composable. Favor small presentational components over large, multi-purpose files.
+E2E readiness scaffolding is in `tests/e2e/` (Playwright installed).
 
-### Data and database workflow
+## 5) Database and migrations
 
-- Treat Prisma schema changes as source of truth and run migrations for every schema update.
-- Regenerate Prisma Client after schema edits:
+Production-safe Prisma scripts:
 
 ```bash
 npm run prisma:generate
+npm run prisma:migrate:deploy
+npm run prisma:migrate:dev
+npm run prisma:seed:dev
 ```
 
-- Centralize DB access through `lib/prisma.ts` and avoid creating multiple Prisma clients.
+- `prisma:seed:dev` is intended for development only.
 
-### Styling and UI consistency
+## 6) Deployment (Vercel + managed Postgres)
 
-- Use Tailwind utility classes directly in components, and use `lib/utils.ts` helpers for safe class composition.
-- Reuse shared UI primitives (cards, section headers, navigation) before adding new variants.
-- Keep spacing, typography, and color usage consistent with existing patterns in `app/globals.css` and current components.
+1. Create managed PostgreSQL and set `DATABASE_URL`.
+2. Set required environment variables in Vercel project settings.
+3. Build command: `npm run build`.
+4. Start command: `npm run start`.
+5. Run migrations as part of release workflow: `npm run prisma:migrate:deploy`.
+6. Verify `/api/health` after deployment.
 
-### Code quality
+## 7) Production checklist
 
-- Run lint checks before committing:
-
-```bash
-npm run lint
-```
-
-- Prefer strict typing and avoid `any`; model domain data with explicit TypeScript types/interfaces.
-- Keep mock or seed-style data (like home page fixtures) isolated in feature data files.
-
-### Environment and operations
-
-- Never commit `.env`; copy from `.env.example` and keep secrets local.
-- Validate app changes in development (`npm run dev`) and verify production builds (`npm run build`) before release.
-
-### API and authentication hygiene
-
-- Validate incoming request payloads at API boundaries (for example, in `app/api/auth/*`) before touching business logic or the database.
-- Keep authentication and session logic centralized in `lib/auth/*`; avoid duplicating cookie/session rules across route handlers.
-- Return consistent, minimal error messages from auth endpoints to avoid leaking sensitive implementation details.
-
-### Security and privacy
-
-- Hash passwords with a strong one-way algorithm and never log credentials or full session tokens.
-- Use least-privilege database access and avoid exposing internal IDs or sensitive fields in client-facing responses.
-- Keep dependencies current (`npm outdated`) and apply security fixes promptly.
-
-### Performance and maintainability
-
-- Prefer server-side data fetching in App Router routes to reduce client bundle size.
-- Avoid unnecessary re-renders by keeping client component state local and passing only needed props.
-- When adding new features, colocate domain-specific code under `features/<feature-name>/` to keep modules discoverable.
+- [ ] `AUTH_SECRET` is long/random
+- [ ] `DATABASE_URL` points to managed Postgres
+- [ ] Email/storage/payment provider secrets are set
+- [ ] `NEXT_PUBLIC_APP_URL` uses production domain
+- [ ] `npm run lint`, `npm run test`, `npm run build` pass
+- [ ] Health check monitored
+- [ ] Monitoring DSN configured (when provider selected)

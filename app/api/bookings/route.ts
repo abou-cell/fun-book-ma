@@ -4,8 +4,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { bookingRequestSchema } from "@/lib/booking/validation";
 import { sendBookingCreatedEmails } from "@/lib/email/booking-notifications";
+import { AppError, handleRouteError } from "@/lib/errors/http";
 import { calculateCheckoutAmounts } from "@/lib/financials/commission";
+import { logger } from "@/lib/observability/logger";
 import { prisma } from "@/lib/prisma";
+import { buildRateLimitKey, checkRateLimit } from "@/lib/security/rate-limit";
+
+const BOOKING_LIMIT = 20;
+const BOOKING_WINDOW_MS = 60 * 1000;
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -13,6 +19,11 @@ export async function POST(request: Request) {
 
   if (!userId) {
     return NextResponse.json({ error: "You must be signed in to book." }, { status: 401 });
+  }
+
+  const rateLimit = checkRateLimit(buildRateLimitKey(["booking", userId]), BOOKING_LIMIT, BOOKING_WINDOW_MS);
+  if (!rateLimit.ok) {
+    return NextResponse.json({ error: "Too many booking attempts. Please retry in a moment." }, { status: 429 });
   }
 
   const parsedBody = bookingRequestSchema.safeParse(await request.json());
@@ -52,11 +63,11 @@ export async function POST(request: Request) {
       });
 
       if (!schedule) {
-        throw new Error("Selected slot is no longer available.");
+        throw new AppError("Selected slot is no longer available.");
       }
 
       if (schedule.availableSpots < payload.participants) {
-        throw new Error("Not enough spots available for this slot.");
+        throw new AppError("Not enough spots available for this slot.");
       }
 
       const updatedSchedule = await tx.schedule.updateMany({
@@ -70,7 +81,7 @@ export async function POST(request: Request) {
       });
 
       if (updatedSchedule.count === 0) {
-        throw new Error("Slot availability changed. Please retry.");
+        throw new AppError("Slot availability changed. Please retry.");
       }
 
       const subtotal = Number(schedule.price.mul(payload.participants));
@@ -120,11 +131,19 @@ export async function POST(request: Request) {
       bookingId: booking.id,
       activityTitle: booking.activity.title,
       amount: Number(booking.totalPrice),
+    }).catch((error) => {
+      logger.warn("Booking created but email failed", {
+        bookingId: booking.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
 
+    logger.info("Booking created", { bookingId: booking.id, userId });
     return NextResponse.json({ bookingId: booking.id }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Booking failed";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return handleRouteError(error, {
+      route: "/api/bookings",
+      fallbackMessage: "Booking failed",
+    });
   }
 }

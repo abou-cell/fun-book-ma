@@ -9,6 +9,10 @@ export async function requireProviderSession() {
     return { error: "Unauthorized", status: 401 as const };
   }
 
+  if (session.user.role !== "PROVIDER") {
+    return { error: "Forbidden", status: 403 as const };
+  }
+
   const provider = await getProviderByUserId(userId);
 
   if (!provider) {

@@ -8,6 +8,8 @@ import {
 
 import { sendPaymentSuccessEmail } from "@/lib/email/booking-notifications";
 import { getPaymentGateway } from "@/lib/payments/providers";
+import { paymentStatusToCheckoutRoute } from "@/lib/payments/status";
+import { logger } from "@/lib/observability/logger";
 import { prisma } from "@/lib/prisma";
 
 type ProcessPaymentInput = {
@@ -44,9 +46,6 @@ function validatePaymentRequest(input: ProcessPaymentInput) {
   }
 }
 
-function getRedirectPath(bookingId: string, status: PaymentStatus) {
-  return status === PaymentStatus.PAID ? `/checkout/success/${bookingId}` : `/checkout/failed/${bookingId}`;
-}
 
 function sendPaymentSuccessEmailInBackground(payload: SuccessfulPaymentEmailJob | null) {
   if (!payload) {
@@ -55,9 +54,9 @@ function sendPaymentSuccessEmailInBackground(payload: SuccessfulPaymentEmailJob 
 
   queueMicrotask(() => {
     void sendPaymentSuccessEmail(payload).catch((error) => {
-      console.warn("[payments] payment success notification failed", {
+      logger.warn("Payment success notification failed", {
         bookingId: payload.bookingId,
-        error,
+        error: error instanceof Error ? error.message : String(error),
       });
     });
   });
@@ -135,7 +134,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
         return {
           bookingId: booking.id,
           status: PaymentStatus.PAID,
-          redirectPath: getRedirectPath(booking.id, PaymentStatus.PAID),
+          redirectPath: paymentStatusToCheckoutRoute(PaymentStatus.PAID, booking.id),
           emailJob: null,
         };
       }
@@ -179,7 +178,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
       });
 
       if (existingPayment) {
-        if (existingPayment.status === PaymentStatus.PAID && booking.paymentStatus !== PaymentStatus.PAID) {
+        if (existingPayment.status === PaymentStatus.PAID) {
           await tx.booking.update({
             where: { id: booking.id },
             data: {
@@ -195,7 +194,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
         return {
           bookingId: booking.id,
           status: existingPayment.status,
-          redirectPath: getRedirectPath(booking.id, existingPayment.status),
+          redirectPath: paymentStatusToCheckoutRoute(existingPayment.status, booking.id),
           emailJob: null,
         };
       }
@@ -218,7 +217,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
           currency: "MAD",
           status,
           reference: confirmation.reference,
-          rawPayload: confirmation.rawPayload,
+          rawPayload: confirmation.rawPayload ? (confirmation.rawPayload as Prisma.InputJsonValue) : Prisma.JsonNull,
         },
       });
 
@@ -249,7 +248,7 @@ export async function processBookingPayment(input: ProcessPaymentInput) {
       return {
         bookingId: booking.id,
         status: updatedBooking.paymentStatus,
-        redirectPath: getRedirectPath(booking.id, updatedBooking.paymentStatus),
+        redirectPath: paymentStatusToCheckoutRoute(updatedBooking.paymentStatus, booking.id),
         emailJob,
       };
     },
