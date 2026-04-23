@@ -6,9 +6,8 @@ import { BookingSection } from "@/components/booking/BookingSection";
 import { SectionHeader } from "@/components/SectionHeader";
 import { NavbarPageLayout } from "@/components/layout/NavbarPageLayout";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { activityCategoryLabels, getActivityBySlug } from "@/features/activities/catalog";
+import { activityCategoryLabels, getActivityBySlug, getPublicSchedulesForActivity } from "@/features/activities/catalog";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { prisma } from "@/lib/prisma";
 import { validateReviewOwnership } from "@/lib/reviews/validation";
 import { buildPageMetadata, toAbsoluteUrl } from "@/lib/seo/metadata";
 import { buildActivityStructuredData, buildBreadcrumbSchema } from "@/lib/seo/structured-data";
@@ -50,28 +49,13 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
   }
 
   const [schedules, reviewOwnership] = await Promise.all([
-    prisma.schedule.findMany({
-      where: {
-        activityId: activity.id,
-        isActive: true,
-        startTime: { gte: new Date() },
-      },
-      orderBy: [{ date: "asc" }, { startTime: "asc" }],
-      select: {
-        id: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        availableSpots: true,
-        price: true,
-      },
-    }),
+    getPublicSchedulesForActivity(activity.id),
     currentUser
       ? validateReviewOwnership({
           userId: currentUser.id,
           activityId: activity.id,
         })
-      : Promise.resolve({ canReview: false, bookingId: undefined }),
+      : Promise.resolve({ canReview: false, bookingId: undefined, ownership: "no_confirmed_booking" as const }),
   ]);
 
   const bookingSchedules = schedules.map((schedule) => ({
@@ -110,7 +94,13 @@ export default async function ActivityDetailsPage({ params }: ActivityDetailsPag
       <JsonLd id="activity-schema" data={activityStructuredData} />
 
       <SectionHeader title={activity.title} subtitle={activity.shortDescription} />
-      <p className="sr-only">{reviewOwnership.canReview ? "Verified booking owner can submit a review." : "Review submission requires a confirmed paid booking."}</p>
+      <p className="sr-only">
+        {reviewOwnership.canReview
+          ? "Verified booking owner can submit a review."
+          : reviewOwnership.ownership === "no_paid_booking"
+            ? "Review submission requires a paid booking."
+            : "Review submission requires a confirmed booking ownership."}
+      </p>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">

@@ -3,8 +3,11 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/seo/metadata";
 
+export const revalidate = 60 * 60;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
+  const generatedAt = new Date();
 
   const activities = await prisma.activity.findMany({
     where: {
@@ -23,13 +26,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     {
       url: `${siteUrl}/`,
-      lastModified: new Date(),
+      lastModified: generatedAt,
       changeFrequency: "daily",
       priority: 1,
     },
     {
       url: `${siteUrl}/activities`,
-      lastModified: new Date(),
+      lastModified: generatedAt,
       changeFrequency: "daily",
       priority: 0.9,
     },
