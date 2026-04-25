@@ -1,4 +1,4 @@
-# FunBook Morocco (Production-Ready Baseline)
+# FunBook (Production-Ready Baseline)
 
 Marketplace starter built with Next.js App Router, TypeScript, Prisma, and PostgreSQL.
 
